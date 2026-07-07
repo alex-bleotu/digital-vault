@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Digital Vault</string>
+    <string name="accessibility_service_label">Digital Vault</string>
+    <string name="accessibility_service_description">Digital Vault watches only the apps you choose to block and the surfaces inside them. It never reads your messages or logs your activity. When you land on a blocked app or feed, it closes it and shows a block screen.</string>
+    <string name="device_admin_label">Digital Vault uninstall lock</string>
+    <string name="device_admin_description">Requires your vault password before Digital Vault can be uninstalled or disabled.</string>
+    <string name="device_admin_disable_warning">Uninstalling Digital Vault removes every block you set up. Enter your vault password to continue.</string>
+</resources>
