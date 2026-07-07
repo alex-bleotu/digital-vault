@@ -131,7 +131,7 @@ fun ShieldScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Add a domain to block it in every browser.\nEnforced by the same engine that blocks apps, no VPN needed.",
+                        text = "Add a domain to block it.\nEnforced by the same engine that blocks apps, no VPN needed.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textMuted,
                         textAlign = TextAlign.Center,

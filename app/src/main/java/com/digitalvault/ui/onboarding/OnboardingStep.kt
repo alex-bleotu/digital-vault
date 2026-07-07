@@ -21,10 +21,9 @@ enum class OnboardingStep(
     AUTO_BLOCKER(
         icon = Icons.Filled.Security,
         title = "About Samsung Auto Blocker",
-        why = "You turned Auto Blocker off to install Digital Vault. It's safe to turn it back on now. It only affects new installs, not apps already on the phone.",
+        why = "You turned Auto Blocker off to install Digital Vault. It's safe to turn it back on now under Settings → Security and privacy → Auto Blocker. It only affects new installs, not apps already on the phone.",
         actionLabel = "Got it",
         manualConfirm = true,
-        note = "Settings → Security and privacy → Auto Blocker. Finish this setup first, then re-enable it.",
     ),
     OVERLAY(
         icon = Icons.Filled.Layers,
