@@ -187,7 +187,7 @@ fun VaultScreen(
             val standDownActive = state.standDownUntil?.isAfter(Instant.now()) == true
 
             Text(
-                text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Guard enforcement.",
+                text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Shield enforcement.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textMuted,
             )
