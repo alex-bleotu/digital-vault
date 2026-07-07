@@ -3,5 +3,5 @@ package com.digitalvault.core.update
 data class UpdateInfo(
     val versionCode: Int,
     val versionTag: String,
-    val apkAssetApiUrl: String,
+    val apkDownloadUrl: String,
 )

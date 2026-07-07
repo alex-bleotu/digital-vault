@@ -37,7 +37,6 @@ jobs:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          UPDATE_CHECK_TOKEN: ${{ secrets.UPDATE_CHECK_TOKEN }}
         run: ./gradlew :app:assembleRelease
 
       - name: Create GitHub Release
