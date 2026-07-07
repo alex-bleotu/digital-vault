@@ -10,9 +10,11 @@ object InstagramHomeFeedMatcher : SurfaceMatcher {
 
     private const val MAX_POSTS_BEFORE_BLOCK = 3
     private const val CAPTION_CLASS_NAME = "com.instagram.ui.widget.textview.IgTextLayoutView"
+    private const val SESSION_GAP_MILLIS = 60_000L
     private val otherSurfaceMarkers = listOf("Reply to", "Add comment", "Send to chat", "Messages", "Requests")
 
     private val seenCaptions = mutableSetOf<String>()
+    private var lastSeenAtMillis = 0L
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         val onOtherSurface = otherSurfaceMarkers.any { root.findVisibleNodesByText(it).isNotEmpty() } ||
@@ -27,6 +29,13 @@ object InstagramHomeFeedMatcher : SurfaceMatcher {
         if (currentCaptions.isEmpty()) {
             return false
         }
+
+        val now = System.currentTimeMillis()
+        if (now - lastSeenAtMillis > SESSION_GAP_MILLIS) {
+            seenCaptions.clear()
+        }
+        lastSeenAtMillis = now
+
         currentCaptions.forEach { seenCaptions.add(it) }
 
         return seenCaptions.size > MAX_POSTS_BEFORE_BLOCK
