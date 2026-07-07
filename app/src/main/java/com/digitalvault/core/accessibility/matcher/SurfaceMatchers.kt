@@ -6,7 +6,6 @@ object SurfaceMatchers {
         InstagramReelsMatcher,
         InstagramSuggestedReelMatcher,
         InstagramSearchPostMatcher,
-        InstagramHomeFeedMatcher,
         TikTokFeedMatcher,
         TikTokSearchMatcher,
         ChromeIncognitoMatcher,
