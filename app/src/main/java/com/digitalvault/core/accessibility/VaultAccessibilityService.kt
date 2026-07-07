@@ -265,7 +265,13 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         activeBlockedPackage = packageName
         goHome()
-        showTimeoutWall(domain, loadAppIcon(packageName), allowBreak = false, breakUsedToday = false) {}
+        showTimeoutWall(
+            domain,
+            loadAppIcon(packageName),
+            allowBreak = false,
+            breakUsedToday = false,
+            isDomainBlock = true,
+        ) {}
     }
 
     private fun matchedRoot(packageName: String): AccessibilityNodeInfo? {
@@ -398,6 +404,7 @@ class VaultAccessibilityService : AccessibilityService() {
         appIcon: ImageBitmap?,
         allowBreak: Boolean,
         breakUsedToday: Boolean,
+        isDomainBlock: Boolean = false,
         onDismissForBreak: () -> Unit,
     ) {
         overlayController?.showTimeoutWall(
@@ -407,6 +414,7 @@ class VaultAccessibilityService : AccessibilityService() {
             holdMillis = HOLD_MILLIS,
             allowBreak = allowBreak,
             breakUsedToday = breakUsedToday,
+            isDomainBlock = isDomainBlock,
             onDismissForBreak = onDismissForBreak,
             onExit = ::exitToHome,
         )

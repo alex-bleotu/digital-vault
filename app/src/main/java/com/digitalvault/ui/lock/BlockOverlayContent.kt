@@ -74,6 +74,7 @@ data class BlockOverlayRequest(
     val reduceMotion: Boolean,
     val allowBreak: Boolean = true,
     val breakUsedToday: Boolean = false,
+    val isDomainBlock: Boolean = false,
 )
 
 @Composable
@@ -214,6 +215,8 @@ fun BlockOverlayContent(
                         Text(
                             text = if (request.breakUsedToday) {
                                 "TODAY'S BREAK IS USED. TRY AGAIN TOMORROW"
+                            } else if (request.isDomainBlock) {
+                                "BREAKS ARE TURNED OFF FOR DOMAINS"
                             } else {
                                 "BREAKS ARE TURNED OFF FOR THIS APP"
                             },
