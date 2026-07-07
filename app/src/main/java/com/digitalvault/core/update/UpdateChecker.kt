@@ -33,7 +33,7 @@ object UpdateChecker {
 
             val json = JSONObject(body)
             val tagName = json.optString("tag_name")
-            val versionCode = tagName.removePrefix("v").toIntOrNull() ?: return@withContext null
+            val versionCode = tagName.substringAfterLast('.').toIntOrNull() ?: return@withContext null
             if (versionCode <= currentVersionCode) {
                 return@withContext null
             }
