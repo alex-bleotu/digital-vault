@@ -12,8 +12,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.getSystemService
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -123,30 +121,9 @@ class BlockOverlayController(private val context: Context) {
             overlayView = composeView
             lifecycleOwner = owner
             kind = overlayKind
-            adjustHeightToRealInsets(composeView)
         } catch (error: WindowManager.BadTokenException) {
             Log.w(OVERLAY_TAG, "Failed to add overlay view", error)
             owner.onDestroy()
-        }
-    }
-
-    private fun adjustHeightToRealInsets(composeView: ComposeView) {
-        ViewCompat.setOnApplyWindowInsetsListener(composeView) { view, insets ->
-            val manager = windowManager
-            val params = view.layoutParams as? WindowManager.LayoutParams
-            if (manager != null && params != null) {
-                val gestureBottom = insets.getInsets(WindowInsetsCompat.Type.systemGestures()).bottom
-                val navBarBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-                val reservedBottom = maxOf(gestureBottom, navBarBottom)
-                val targetHeight = screenHeightPx() - reservedBottom
-                if (reservedBottom > 0 && params.height != targetHeight) {
-                    params.height = targetHeight
-                    runCatching { manager.updateViewLayout(view, params) }
-                        .onFailure { Log.w(OVERLAY_TAG, "Failed to correct overlay height", it) }
-                }
-            }
-
-            insets
         }
     }
 
@@ -169,7 +146,7 @@ class BlockOverlayController(private val context: Context) {
 
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            screenHeightPx() - gestureNavHeightPx(),
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags,
             PixelFormat.TRANSLUCENT,
@@ -177,13 +154,5 @@ class BlockOverlayController(private val context: Context) {
             gravity = Gravity.TOP or Gravity.START
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
-    }
-
-    private fun screenHeightPx(): Int = context.resources.displayMetrics.heightPixels
-
-    private fun gestureNavHeightPx(): Int {
-        val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
-
-        return if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
     }
 }
