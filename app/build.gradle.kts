@@ -33,11 +33,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.digitalvault"
+        applicationId = "com.alexbleotu.vault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.8"
+        versionCode = 2
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

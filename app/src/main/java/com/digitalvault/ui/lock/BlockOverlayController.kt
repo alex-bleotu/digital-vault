@@ -2,6 +2,8 @@ package com.digitalvault.ui.lock
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Point
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -146,7 +148,7 @@ class BlockOverlayController(private val context: Context) {
 
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayHeightPx(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags,
             PixelFormat.TRANSLUCENT,
@@ -154,5 +156,27 @@ class BlockOverlayController(private val context: Context) {
             gravity = Gravity.TOP or Gravity.START
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
+    }
+
+    private fun overlayHeightPx(): Int =
+        if (isSamsung()) screenHeightPx() - samsungGapPx() else screenHeightPx() - gestureNavHeightPx()
+
+    private fun isSamsung(): Boolean = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+
+    private fun samsungGapPx(): Int = (2 * context.resources.displayMetrics.density).toInt()
+
+    private fun screenHeightPx(): Int {
+        val display = windowManager?.defaultDisplay
+            ?: return context.resources.displayMetrics.heightPixels
+        val point = Point()
+        display.getRealSize(point)
+
+        return point.y
+    }
+
+    private fun gestureNavHeightPx(): Int {
+        val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+
+        return if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
     }
 }

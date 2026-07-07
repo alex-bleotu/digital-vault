@@ -1,8 +1,12 @@
 package com.digitalvault.ui.vault
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.os.Build
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,6 +99,10 @@ fun VaultScreen(
         return
     }
 
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refreshLiveChecks() }
+
     fun launch(intent: Intent) {
         try {
             context.startActivity(intent)
@@ -147,7 +155,13 @@ fun VaultScreen(
             HealthRow(
                 label = "Notifications",
                 isHealthy = state.areNotificationsEnabled,
-                onFix = { launch(viewModel.permissions.appSettingsIntent()) },
+                onFix = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        launch(viewModel.permissions.appSettingsIntent())
+                    }
+                },
             )
             Spacer(Modifier.height(8.dp))
             Text(
