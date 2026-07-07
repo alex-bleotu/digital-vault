@@ -24,6 +24,16 @@ val hasReleaseSigningConfig = releaseKeystorePath != null &&
     releaseKeyAlias != null &&
     releaseKeyPassword != null
 
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties().apply {
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val updateCheckToken = localProperties.getProperty("updateCheckToken")
+    ?: System.getenv("UPDATE_CHECK_TOKEN")
+    ?: ""
+
 android {
     namespace = "com.digitalvault"
     compileSdk {
@@ -40,6 +50,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "UPDATE_CHECK_TOKEN", "\"$updateCheckToken\"")
+        buildConfigField("String", "UPDATE_REPO", "\"alex-bleotu/digital-vault\"")
     }
 
     if (hasReleaseSigningConfig) {
@@ -69,6 +82,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

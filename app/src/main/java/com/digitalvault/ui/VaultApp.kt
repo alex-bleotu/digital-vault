@@ -26,6 +26,7 @@ import com.digitalvault.ui.rules.RulesViewModel
 import com.digitalvault.ui.shield.ShieldScreen
 import com.digitalvault.ui.shield.ShieldViewModel
 import com.digitalvault.ui.theme.VaultTheme
+import com.digitalvault.ui.update.UpdateDialog
 import com.digitalvault.ui.vault.VaultScreen
 
 @Composable
@@ -38,6 +39,8 @@ fun VaultApp() {
         rulesViewModel.loadInstalledApps()
     }
     val shieldViewModel: ShieldViewModel = viewModel()
+
+    UpdateDialog()
 
     Scaffold(
         containerColor = VaultTheme.colors.ink,
