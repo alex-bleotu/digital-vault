@@ -53,8 +53,8 @@ enum class OnboardingStep(
     ),
     NOTIFICATIONS(
         icon = Icons.Filled.Notifications,
-        title = "Show the guard's status",
-        why = "The protection engine shows one quiet, honest notification while it runs, and warns you if a protection breaks.",
+        title = "Get warned if protection breaks",
+        why = "Digital Vault sends a notification if a protection stops working, so you know to fix it right away instead of finding out later.",
         actionLabel = "Allow notifications",
     ),
     AUTOSTART(
