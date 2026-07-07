@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -40,7 +41,11 @@ fun UpdateDialog(viewModel: UpdateViewModel = viewModel()) {
                 if (viewModel.status == UpdateStatus.DOWNLOADING) {
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(color = colors.brass)
+                        CircularProgressIndicator(
+                            color = colors.brass,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                        )
                         Spacer(Modifier.width(16.dp))
                         Text(text = "Downloading…", color = colors.textMuted)
                     }
