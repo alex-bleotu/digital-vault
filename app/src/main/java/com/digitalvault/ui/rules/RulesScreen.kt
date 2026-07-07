@@ -219,7 +219,7 @@ private fun RuleRow(
         BlockMode.FULL_BLOCK -> "FULL BLOCK"
         BlockMode.SURFACE_BLOCK -> when {
             isChromeIncognitoRule -> "INCOGNITO BLOCK"
-            isYouTubeShortsRule -> "SHORTS BLOCK"
+            isYouTubeShortsRule -> "SHORTS BLOCK · ${rule.graceSeconds}S GRACE"
             else -> "FEED BLOCK · ${rule.graceSeconds}S GRACE"
         }
         BlockMode.UNRESTRICTED -> "UNRESTRICTED"
