@@ -38,7 +38,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         val context = getApplication<Application>()
         viewModelScope.launch {
             status = UpdateStatus.DOWNLOADING
-            val file = UpdateInstaller.downloadApk(context, info.apkAssetApiUrl)
+            val file = UpdateInstaller.downloadApk(context, info.apkDownloadUrl)
             if (file == null) {
                 status = UpdateStatus.FAILED
 

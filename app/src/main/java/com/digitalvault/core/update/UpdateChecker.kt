@@ -19,9 +19,6 @@ object UpdateChecker {
                 "https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases/latest",
             ).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github+json")
-            if (BuildConfig.UPDATE_CHECK_TOKEN.isNotBlank()) {
-                connection.setRequestProperty("Authorization", "Bearer ${BuildConfig.UPDATE_CHECK_TOKEN}")
-            }
             connection.connectTimeout = TIMEOUT_MILLIS
             connection.readTimeout = TIMEOUT_MILLIS
 
@@ -42,18 +39,18 @@ object UpdateChecker {
             }
 
             val assets = json.optJSONArray("assets") ?: return@withContext null
-            var apkAssetApiUrl: String? = null
+            var apkDownloadUrl: String? = null
             for (index in 0 until assets.length()) {
                 val asset = assets.getJSONObject(index)
                 if (asset.optString("name").endsWith(".apk")) {
-                    apkAssetApiUrl = asset.optString("url")
+                    apkDownloadUrl = asset.optString("browser_download_url")
                     break
                 }
             }
 
-            val assetUrl = apkAssetApiUrl ?: return@withContext null
+            val downloadUrl = apkDownloadUrl ?: return@withContext null
 
-            UpdateInfo(versionCode = versionCode, versionTag = tagName, apkAssetApiUrl = assetUrl)
+            UpdateInfo(versionCode = versionCode, versionTag = tagName, apkDownloadUrl = downloadUrl)
         }.onFailure {
             Log.w(UPDATE_TAG, "Update check failed", it)
         }.getOrNull()
