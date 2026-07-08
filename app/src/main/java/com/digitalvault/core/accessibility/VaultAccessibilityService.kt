@@ -20,6 +20,8 @@ import androidx.core.graphics.drawable.toBitmap
 import com.digitalvault.R
 import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
+import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
+import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.RulesRepository
@@ -48,6 +50,7 @@ private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val TREE_DUMP_TAG = "VaultTreeDump"
 private const val TREE_DUMP_THROTTLE_MILLIS = 3_000L
+private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
 
@@ -84,6 +87,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var isInstagramSettingsOrProfile: Boolean = false
+
+    @Volatile
+    private var allowedInstagramReelIdentity: String? = null
 
     @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
@@ -242,7 +248,7 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome()
+        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -279,7 +285,7 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome()
+        goHome(packageName)
         showTimeoutWall(
             domain,
             loadAppIcon(packageName),
@@ -292,11 +298,26 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun updateInstagramZone(root: AccessibilityNodeInfo) {
         if (InstagramZoneGuard.isMainReelsTab(root)) {
             isInstagramSettingsOrProfile = false
+            allowedInstagramReelIdentity = null
 
             return
         }
         if (InstagramZoneGuard.isSettingsOrOwnProfile(root)) {
             isInstagramSettingsOrProfile = true
+            allowedInstagramReelIdentity = null
+
+            return
+        }
+        if (!isInstagramSettingsOrProfile) {
+            return
+        }
+        val reelIdentity = InstagramZoneGuard.findReelIdentity(root) ?: return
+        val lockedIdentity = allowedInstagramReelIdentity
+        if (lockedIdentity == null) {
+            allowedInstagramReelIdentity = reelIdentity
+        } else if (lockedIdentity != reelIdentity) {
+            isInstagramSettingsOrProfile = false
+            allowedInstagramReelIdentity = null
         }
     }
 
@@ -362,7 +383,7 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome()
+        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -398,10 +419,12 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun goHome() {
+    private fun goHome(packageName: String) {
         selfTriggeredHomeAtMillis = System.currentTimeMillis()
         performGlobalAction(GLOBAL_ACTION_HOME)
-        requestAudioFocus()
+        if (packageName in AUDIO_STOP_PACKAGES) {
+            requestAudioFocus()
+        }
     }
 
     private fun requestAudioFocus() {
