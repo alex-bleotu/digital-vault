@@ -83,6 +83,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private var systemDialogsReceiver: BroadcastReceiver? = null
 
     @Volatile
+    private var isInstagramSettingsOrProfile: Boolean = false
+
+    @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
 
     @Volatile
@@ -174,6 +177,9 @@ class VaultAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             -> {
+                if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    matchedRoot(packageName)?.let { updateInstagramZone(it) }
+                }
                 if (packageName in SettingsGuard.watchedPackages) {
                     guardSettingsScreen()
                 } else {
@@ -232,6 +238,9 @@ class VaultAccessibilityService : AccessibilityService() {
         if (isWithinSelfTriggeredHomeGuard()) {
             return
         }
+        if (isSuppressedInstagramZone(packageName)) {
+            return
+        }
         activeBlockedPackage = packageName
         goHome()
         val usedToday = hasUsedBreakToday(packageName)
@@ -280,6 +289,20 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {}
     }
 
+    private fun updateInstagramZone(root: AccessibilityNodeInfo) {
+        if (InstagramZoneGuard.isMainReelsTab(root)) {
+            isInstagramSettingsOrProfile = false
+
+            return
+        }
+        if (InstagramZoneGuard.isSettingsOrOwnProfile(root)) {
+            isInstagramSettingsOrProfile = true
+        }
+    }
+
+    private fun isSuppressedInstagramZone(packageName: String): Boolean =
+        packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramSettingsOrProfile
+
     private fun matchedRoot(packageName: String): AccessibilityNodeInfo? {
         val root = rootInActiveWindow ?: return null
 
@@ -294,6 +317,16 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun evaluateSurface(packageName: String, rule: AppRule) {
         matchedRoot(packageName)?.let { maybeDumpTree(packageName, it) }
         if (isTemporarilyAllowed(packageName)) {
+            resetSurface(packageName)
+
+            return
+        }
+        if (isWithinSelfTriggeredHomeGuard()) {
+            resetSurface(packageName)
+
+            return
+        }
+        if (isSuppressedInstagramZone(packageName)) {
             resetSurface(packageName)
 
             return
@@ -323,6 +356,9 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         if (isWithinSelfTriggeredHomeGuard()) {
+            return
+        }
+        if (isSuppressedInstagramZone(packageName)) {
             return
         }
         activeBlockedPackage = packageName
