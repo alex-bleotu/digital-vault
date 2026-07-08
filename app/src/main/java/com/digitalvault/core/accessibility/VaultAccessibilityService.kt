@@ -229,6 +229,9 @@ class VaultAccessibilityService : AccessibilityService() {
         if (activeBlockedPackage == packageName) {
             return
         }
+        if (isWithinSelfTriggeredHomeGuard()) {
+            return
+        }
         activeBlockedPackage = packageName
         goHome()
         val usedToday = hasUsedBreakToday(packageName)
@@ -244,6 +247,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private fun guardBrowser(packageName: String) {
         if (overlayController?.isShowing == true) {
+            return
+        }
+        if (isWithinSelfTriggeredHomeGuard()) {
             return
         }
         val root = rootInActiveWindow ?: return
@@ -314,6 +320,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun blockSurface(packageName: String, rule: AppRule) {
         resetSurface(packageName)
         if (overlayController?.isShowing == true) {
+            return
+        }
+        if (isWithinSelfTriggeredHomeGuard()) {
             return
         }
         activeBlockedPackage = packageName
@@ -421,11 +430,15 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun exitToHome() {
+        selfTriggeredHomeAtMillis = System.currentTimeMillis()
         activeBlockedPackage = null
         overlayController?.hide()
         performGlobalAction(GLOBAL_ACTION_HOME)
         abandonAudioFocus()
     }
+
+    private fun isWithinSelfTriggeredHomeGuard(): Boolean =
+        System.currentTimeMillis() - selfTriggeredHomeAtMillis < SELF_TRIGGERED_HOME_GUARD_MILLIS
 
     private fun guardSettingsScreen() {
         if (!isPasswordSet) {
