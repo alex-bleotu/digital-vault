@@ -13,6 +13,19 @@ interface SurfaceMatcher {
 fun AccessibilityNodeInfo.findVisibleNodesByText(text: String): List<AccessibilityNodeInfo> =
     findAccessibilityNodeInfosByText(text).filter { it.isVisibleToUser }
 
+fun AccessibilityNodeInfo.hasVisibleNodeWithExactText(target: String): Boolean {
+    if (isVisibleToUser && (text?.toString() == target || contentDescription?.toString() == target)) {
+        return true
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.hasVisibleNodeWithExactText(target) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
 fun AccessibilityNodeInfo.anyDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
     contentDescription?.let { if (predicate(it)) return true }
     for (index in 0 until childCount) {
