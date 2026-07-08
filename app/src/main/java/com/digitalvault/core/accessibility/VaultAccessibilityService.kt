@@ -206,14 +206,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 val rule = surfaceRules[packageName] ?: return
-                if (isTemporarilyAllowed(packageName)) {
-                    return
-                }
-                val root = matchedRoot(packageName) ?: return
-                val matchers = matchersFor(packageName, rule)
-                if (matchers.isNotEmpty() && matchers.any { it.isTargetSurface(root) }) {
-                    blockSurface(packageName, rule)
-                }
+                evaluateSurface(packageName, rule)
             }
         }
     }
@@ -364,7 +357,14 @@ class VaultAccessibilityService : AccessibilityService() {
             entry.isInTarget = true
             entry.graceJob = serviceScope.launch {
                 delay(rule.graceSeconds * 1_000L)
-                blockSurface(packageName, rule)
+                val stillInTarget = matchedRoot(packageName)?.let { currentRoot ->
+                    matchers.any { it.isTargetSurface(currentRoot) }
+                } == true
+                if (stillInTarget) {
+                    blockSurface(packageName, rule)
+                } else {
+                    resetSurface(packageName)
+                }
             }
         } else if (!isInTarget && entry.isInTarget) {
             resetSurface(packageName)
