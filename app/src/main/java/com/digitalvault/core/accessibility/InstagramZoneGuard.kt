@@ -24,7 +24,8 @@ object InstagramZoneGuard {
 
     fun findReelIdentity(root: AccessibilityNodeInfo): String? {
         val description = root.contentDescription?.toString()
-        if (description != null &&
+        if (root.isVisibleToUser &&
+            description != null &&
             description.startsWith(REEL_DESCRIPTION_PREFIX) &&
             description.endsWith(REEL_DESCRIPTION_SUFFIX)
         ) {
