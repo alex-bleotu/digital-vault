@@ -48,6 +48,7 @@ private const val HOLD_MILLIS = 1600
 private const val ICON_SIZE_PX = 144
 private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
+private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val TREE_DUMP_TAG = "VaultTreeDump"
 private const val TREE_DUMP_THROTTLE_MILLIS = 3_000L
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
@@ -355,8 +356,14 @@ class VaultAccessibilityService : AccessibilityService() {
 
         if (isInTarget && !entry.isInTarget) {
             entry.isInTarget = true
+            val graceMillis = rule.graceSeconds * 1_000L
+            val settleMillis = if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                maxOf(graceMillis, INSTAGRAM_SETTLE_GUARD_MILLIS)
+            } else {
+                graceMillis
+            }
             entry.graceJob = serviceScope.launch {
-                delay(rule.graceSeconds * 1_000L)
+                delay(settleMillis)
                 val stillInTarget = matchedRoot(packageName)?.let { currentRoot ->
                     matchers.any { it.isTargetSurface(currentRoot) }
                 } == true
