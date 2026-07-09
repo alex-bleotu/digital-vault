@@ -17,7 +17,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
             return false
         }
 
-        return root.findVisibleNodesByText(REELS_TAB_LABEL).isNotEmpty() &&
-            root.findVisibleNodesByText(FRIENDS_TAB_LABEL).isNotEmpty()
+        return root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) &&
+            root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL)
     }
 }
