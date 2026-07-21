@@ -77,6 +77,7 @@ fun RulesScreen(
     val editorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isPickerVisible by remember { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<AppRule?>(null) }
+    var showDeletedApps by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadInstalledApps()
@@ -132,11 +133,15 @@ fun RulesScreen(
                 CircularProgressIndicator(color = colors.brass)
             }
         } else {
+            val (installedRules, deletedRules) = remember(state.rules, appByPackage) {
+                state.rules.partition { it.packageName in appByPackage }
+            }
+
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(state.rules, key = { it.packageName }) { rule ->
+                items(installedRules, key = { it.packageName }) { rule ->
                     RuleRow(
                         rule = rule,
                         label = labelByPackage[rule.packageName] ?: rule.packageName,
@@ -144,6 +149,54 @@ fun RulesScreen(
                         onClick = { editingRule = rule },
                         onRemove = { viewModel.removeRule(rule.packageName) },
                     )
+                }
+
+                if (deletedRules.isNotEmpty()) {
+                    item(key = "deleted-apps-toggle") {
+                        Surface(
+                            onClick = { showDeletedApps = !showDeletedApps },
+                            shape = VaultTheme.shapes.medium,
+                            color = colors.surface,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "+${deletedRules.size} more",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = colors.textMuted,
+                                )
+                                val chevronRotation by animateFloatAsState(
+                                    targetValue = if (showDeletedApps) 180f else 0f,
+                                    label = "chevron",
+                                )
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = if (showDeletedApps) "Hide deleted apps" else "Show deleted apps",
+                                    tint = colors.brass,
+                                    modifier = Modifier.rotate(chevronRotation),
+                                )
+                            }
+                        }
+                    }
+
+                    if (showDeletedApps) {
+                        items(deletedRules, key = { it.packageName }) { rule ->
+                            RuleRow(
+                                rule = rule,
+                                label = rule.packageName,
+                                icon = null,
+                                onClick = { editingRule = rule },
+                                onRemove = { viewModel.removeRule(rule.packageName) },
+                                showIcon = false,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -211,6 +264,7 @@ private fun RuleRow(
     icon: ImageBitmap?,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    showIcon: Boolean = true,
 ) {
     val colors = VaultTheme.colors
     val isChromeIncognitoRule = rule.packageName == "com.android.chrome"
@@ -240,8 +294,10 @@ private fun RuleRow(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AppIcon(icon = icon, label = label, size = 40.dp)
-            Spacer(Modifier.width(14.dp))
+            if (showIcon) {
+                AppIcon(icon = icon, label = label, size = 40.dp)
+                Spacer(Modifier.width(14.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,

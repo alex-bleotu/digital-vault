@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -270,9 +270,11 @@ private fun HealthRow(
             )
         }
         if (!isHealthy) {
-            TextButton(onClick = onFix) {
-                Text(text = "Fix", color = colors.brass)
-            }
+            Text(
+                text = "Fix",
+                color = colors.brass,
+                modifier = Modifier.clickable(onClick = onFix),
+            )
         }
     }
 }
