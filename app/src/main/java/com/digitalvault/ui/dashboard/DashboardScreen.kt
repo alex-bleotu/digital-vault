@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitalvault.ui.navigation.VaultDestination
 import com.digitalvault.ui.theme.VaultTheme
@@ -209,17 +210,17 @@ private fun MasterDial(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.size(224.dp)) {
-            val tickCount = 48
+            val tickCount = 50
             val tickLength = 10.dp.toPx()
             val tickWidth = 2.dp.toPx()
-            val activeTicks = (animatedFraction * tickCount).toInt()
+            val activeTicks = (animatedFraction * tickCount).roundToInt()
 
             repeat(tickCount) { index ->
-                val isActiveTick = index < activeTicks
+                val isActiveTick = animatedFraction > 0f && index <= activeTicks
                 rotate(degrees = index * (360f / tickCount), pivot = center) {
                     drawLine(
                         color = if (isActiveTick) accentColor else colors.surfaceRaised,
-                        start = Offset(center.x, 0f),
+                        start = Offset(center.x, tickWidth / 2f),
                         end = Offset(center.x, tickLength),
                         strokeWidth = tickWidth,
                         cap = StrokeCap.Round,
