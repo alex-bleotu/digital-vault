@@ -56,7 +56,7 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
             return null
         }
         val mode = runCatching { BlockMode.valueOf(parts[1]) }.getOrNull() ?: return null
-        val graceSeconds = parts[2].toIntOrNull() ?: 10
+        val graceSeconds = parts[2].toIntOrNull() ?: 5
         val targetSurfaces = if (parts[3].isEmpty()) emptyList() else parts[3].split(",")
         val allowBreak = parts.getOrNull(4)?.toBooleanStrictOrNull() ?: true
 
