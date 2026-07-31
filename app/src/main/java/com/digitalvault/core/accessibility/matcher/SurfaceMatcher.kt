@@ -36,3 +36,14 @@ fun AccessibilityNodeInfo.anyDescendantDescriptionMatches(predicate: (CharSequen
 
     return false
 }
+
+fun AccessibilityNodeInfo.anyDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
+    text?.let { if (predicate(it)) return true }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.anyDescendantTextMatches(predicate) == true) {
+            return true
+        }
+    }
+
+    return false
+}

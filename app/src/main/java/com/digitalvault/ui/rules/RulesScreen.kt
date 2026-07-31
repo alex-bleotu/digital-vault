@@ -61,9 +61,11 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.ui.theme.VaultTheme
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val YOUTUBE_SHORTS_PACKAGES = setOf("com.google.android.youtube", "app.rvx.android.youtube")
+private val GRACE_SECONDS_STOPS = listOf(0, 1, 5, 10, 15, 20, 30)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -339,7 +341,12 @@ private fun RuleEditor(
     val isYouTubeShortsRule = rule.packageName in YOUTUBE_SHORTS_PACKAGES
     val isInstantBlockRule = isChromeIncognitoRule
     var mode by remember { mutableStateOf(rule.mode) }
-    var graceSeconds by remember { mutableStateOf(rule.graceSeconds.toFloat()) }
+    var graceStepIndex by remember {
+        mutableStateOf(
+            GRACE_SECONDS_STOPS.indices.minBy { index -> abs(GRACE_SECONDS_STOPS[index] - rule.graceSeconds) }.toFloat(),
+        )
+    }
+    val graceSeconds = GRACE_SECONDS_STOPS[graceStepIndex.roundToInt()]
     var allowBreak by remember { mutableStateOf(rule.allowBreak) }
 
     Column(
@@ -390,11 +397,9 @@ private fun RuleEditor(
                     onSelect = { mode = BlockMode.SURFACE_BLOCK },
                 )
             } else {
-                val surfaceNames = SurfaceMatchers.forPackage(rule.packageName)
-                    .joinToString(", ") { it.surfaceLabel }
                 ModeOption(
                     title = "Feed block",
-                    detail = "Only $surfaceNames is blocked. One opened link is fine, but scrolling to the next one is not.",
+                    detail = "The feed is blocked, but videos from friends are still allowed.",
                     isSelected = mode == BlockMode.SURFACE_BLOCK,
                     onSelect = { mode = BlockMode.SURFACE_BLOCK },
                 )
@@ -404,16 +409,16 @@ private fun RuleEditor(
         if (mode == BlockMode.SURFACE_BLOCK && !isInstantBlockRule) {
             Spacer(Modifier.height(24.dp))
             Text(
-                text = "GRACE PERIOD · ${graceSeconds.roundToInt()}S",
+                text = "GRACE PERIOD · ${graceSeconds}S",
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textMuted,
             )
             val sliderInteractionSource = remember { MutableInteractionSource() }
             Slider(
-                value = graceSeconds,
-                onValueChange = { graceSeconds = it },
-                valueRange = 0f..30f,
-                steps = 5,
+                value = graceStepIndex,
+                onValueChange = { graceStepIndex = it },
+                valueRange = 0f..(GRACE_SECONDS_STOPS.size - 1).toFloat(),
+                steps = GRACE_SECONDS_STOPS.size - 2,
                 modifier = Modifier.padding(horizontal = 6.dp),
                 interactionSource = sliderInteractionSource,
                 thumb = {
@@ -477,7 +482,7 @@ private fun RuleEditor(
                 onSave(
                     rule.copy(
                         mode = mode,
-                        graceSeconds = if (isInstantModeSelected) 0 else graceSeconds.roundToInt(),
+                        graceSeconds = if (isInstantModeSelected) 0 else graceSeconds,
                         targetSurfaces = targetSurfaces,
                         allowBreak = if (isNoBreakModeSelected) false else allowBreak,
                     ),

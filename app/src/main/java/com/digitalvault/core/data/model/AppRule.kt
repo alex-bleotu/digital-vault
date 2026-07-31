@@ -9,7 +9,7 @@ enum class BlockMode {
 data class AppRule(
     val packageName: String,
     val mode: BlockMode,
-    val graceSeconds: Int = 10,
+    val graceSeconds: Int = 5,
     val targetSurfaces: List<String> = emptyList(),
     val allowBreak: Boolean = true,
 )
