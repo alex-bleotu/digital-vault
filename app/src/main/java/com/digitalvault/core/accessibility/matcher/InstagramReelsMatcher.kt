@@ -14,6 +14,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val REEL_DESCRIPTION_PREFIX = "Reel by "
     private const val REEL_DESCRIPTION_SUFFIX = ". Double tap to play or pause."
     private const val BACK_LABEL = "Back"
+    private const val CLOSE_LABEL = "Close"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
@@ -22,7 +23,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
         if (isTabBarShowing(root)) {
             return true
         }
-        if (root.hasVisibleNodeWithExactText(BACK_LABEL)) {
+        if (root.hasVisibleNodeWithExactText(BACK_LABEL) || root.hasVisibleNodeWithExactText(CLOSE_LABEL)) {
             return false
         }
 
@@ -32,8 +33,22 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) && root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL)
 
-    private fun isWatchingReel(root: AccessibilityNodeInfo): Boolean =
-        root.anyDescendantDescriptionMatches {
-            it.startsWith(REEL_DESCRIPTION_PREFIX) && it.endsWith(REEL_DESCRIPTION_SUFFIX)
+    private fun isWatchingReel(node: AccessibilityNodeInfo): Boolean {
+        val description = node.contentDescription?.toString()
+        if (node.isVisibleToUser &&
+            description != null &&
+            description.startsWith(REEL_DESCRIPTION_PREFIX) &&
+            description.endsWith(REEL_DESCRIPTION_SUFFIX)
+        ) {
+            return true
         }
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            if (isWatchingReel(child)) {
+                return true
+            }
+        }
+
+        return false
+    }
 }
