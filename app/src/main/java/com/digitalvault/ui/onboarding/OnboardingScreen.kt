@@ -5,7 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -54,7 +53,6 @@ import com.digitalvault.ui.theme.VaultTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val ONBOARDING_TAG = "Onboarding"
 
 @Composable
 fun OnboardingScreen(
@@ -87,13 +85,11 @@ fun OnboardingScreen(
     fun launch(intent: Intent, fallback: Intent? = null) {
         try {
             context.startActivity(intent)
-        } catch (error: ActivityNotFoundException) {
-            Log.w(ONBOARDING_TAG, "No activity for ${intent.action}", error)
+        } catch (_: ActivityNotFoundException) {
             if (fallback != null) {
                 try {
                     context.startActivity(fallback)
-                } catch (fallbackError: ActivityNotFoundException) {
-                    Log.w(ONBOARDING_TAG, "No fallback activity for ${fallback.action}", fallbackError)
+                } catch (_: ActivityNotFoundException) {
                 }
             }
         }
@@ -123,8 +119,7 @@ fun OnboardingScreen(
             OnboardingStep.BATTERY -> {
                 try {
                     batteryLauncher.launch(permissions.batteryIntent())
-                } catch (error: ActivityNotFoundException) {
-                    Log.w(ONBOARDING_TAG, "No activity for battery intent", error)
+                } catch (_: ActivityNotFoundException) {
                     launch(permissions.batterySettingsIntent())
                 }
             }

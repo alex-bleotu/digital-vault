@@ -5,7 +5,6 @@ import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -19,7 +18,6 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.digitalvault.ui.theme.DigitalVaultTheme
 
-private const val OVERLAY_TAG = "BlockOverlay"
 
 class BlockOverlayController(private val context: Context) {
 
@@ -82,7 +80,6 @@ class BlockOverlayController(private val context: Context) {
         val manager = windowManager ?: return
         overlayView?.let { view ->
             runCatching { manager.removeView(view) }
-                .onFailure { Log.w(OVERLAY_TAG, "Failed to remove overlay view", it) }
         }
         lifecycleOwner?.onDestroy()
         overlayView = null
@@ -99,8 +96,6 @@ class BlockOverlayController(private val context: Context) {
             return
         }
         if (!Settings.canDrawOverlays(context)) {
-            Log.w(OVERLAY_TAG, "Overlay permission not granted; cannot show ${overlayKind.name}")
-
             return
         }
         val manager = windowManager ?: return
@@ -123,8 +118,7 @@ class BlockOverlayController(private val context: Context) {
             overlayView = composeView
             lifecycleOwner = owner
             kind = overlayKind
-        } catch (error: WindowManager.BadTokenException) {
-            Log.w(OVERLAY_TAG, "Failed to add overlay view", error)
+        } catch (_: WindowManager.BadTokenException) {
             owner.onDestroy()
         }
     }

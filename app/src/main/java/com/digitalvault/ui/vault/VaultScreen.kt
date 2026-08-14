@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -49,7 +48,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private const val VAULT_TAG = "VaultScreen"
 private val CheckFormatter = DateTimeFormatter.ofPattern("HH:mm · d MMM")
 
 @Composable
@@ -106,8 +104,7 @@ fun VaultScreen(
     fun launch(intent: Intent) {
         try {
             context.startActivity(intent)
-        } catch (error: ActivityNotFoundException) {
-            Log.w(VAULT_TAG, "No activity for ${intent.action}", error)
+        } catch (_: ActivityNotFoundException) {
         }
     }
 

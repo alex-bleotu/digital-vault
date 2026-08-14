@@ -9,7 +9,6 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.SystemClock
-import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -44,15 +43,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-private const val ENGINE_TAG = "VaultEngine"
 private const val DISMISS_MINUTES = 5
 private const val HOLD_MILLIS = 1600
 private const val ICON_SIZE_PX = 144
 private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
-private const val TREE_DUMP_TAG = "VaultTreeDump"
-private const val TREE_DUMP_THROTTLE_MILLIS = 3_000L
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
@@ -106,9 +102,6 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
-
-    @Volatile
-    private var lastTreeDumpAtMillis: Long = 0L
 
     private class SurfaceEntry {
         var isInTarget: Boolean = false
@@ -284,7 +277,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         val root = rootInActiveWindow ?: return
-        maybeDumpTree(packageName, root)
 
         if (blockedDomains.isEmpty()) {
             return
@@ -405,7 +397,6 @@ class VaultAccessibilityService : AccessibilityService() {
         }
 
     private fun evaluateSurface(packageName: String, rule: AppRule) {
-        matchedRoot(packageName)?.let { maybeDumpTree(packageName, it) }
         if (isTemporarilyAllowed(packageName)) {
             resetSurface(packageName)
 
@@ -458,10 +449,8 @@ class VaultAccessibilityService : AccessibilityService() {
                     return@launch
                 }
                 val currentRoot = matchedRoot(packageName)
-                val matchedIds = currentRoot?.let { r -> matchers.filter { it.isTargetSurface(r) }.map { it.id } }.orEmpty()
-                if (matchedIds.isNotEmpty()) {
-                    Log.i(ENGINE_TAG, "Block decision for $packageName matched: $matchedIds")
-                    currentRoot?.let { dumpTree(it) }
+                val isStillInTarget = currentRoot != null && matchers.any { it.isTargetSurface(currentRoot) }
+                if (isStillInTarget) {
                     blockSurface(packageName, rule)
                 } else {
                     resetSurface(packageName)
@@ -499,30 +488,6 @@ class VaultAccessibilityService : AccessibilityService() {
             breakUsedToday = rule.allowBreak && usedToday,
         ) {
             dismissForBreak(packageName)
-        }
-        Log.i(ENGINE_TAG, "Surface block fired for $packageName (grace ${rule.graceSeconds}s)")
-    }
-
-    private fun maybeDumpTree(packageName: String, root: AccessibilityNodeInfo) {
-        val now = System.currentTimeMillis()
-        if (now - lastTreeDumpAtMillis < TREE_DUMP_THROTTLE_MILLIS) {
-            return
-        }
-        lastTreeDumpAtMillis = now
-        Log.d(TREE_DUMP_TAG, "===== dump for $packageName =====")
-        dumpTree(root)
-    }
-
-    private fun dumpTree(node: AccessibilityNodeInfo?, depth: Int = 0) {
-        if (node == null) return
-        val indent = "  ".repeat(depth)
-        Log.d(
-            TREE_DUMP_TAG,
-            "$indent${node.className}#${node.viewIdResourceName} text=${node.text} " +
-                "desc=${node.contentDescription} visible=${node.isVisibleToUser}",
-        )
-        for (index in 0 until node.childCount) {
-            dumpTree(node.getChild(index), depth + 1)
         }
     }
 
@@ -695,14 +660,8 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun launchApp(targetPackage: String) {
-        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
-        if (launchIntent == null) {
-            Log.w(ENGINE_TAG, "No launch intent for $targetPackage")
-
-            return
-        }
+        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage) ?: return
         runCatching { startActivity(launchIntent) }
-            .onFailure { Log.w(ENGINE_TAG, "Failed to relaunch $targetPackage", it) }
     }
 
     private fun loadAppLabel(targetPackage: String): String =
