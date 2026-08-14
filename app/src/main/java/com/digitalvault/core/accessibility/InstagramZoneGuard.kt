@@ -27,7 +27,7 @@ object InstagramZoneGuard {
         if (root.isVisibleToUser &&
             description != null &&
             description.startsWith(REEL_DESCRIPTION_PREFIX) &&
-            description.endsWith(REEL_DESCRIPTION_SUFFIX)
+            REEL_DESCRIPTION_SUFFIXES.any { description.endsWith(it) }
         ) {
             return description
         }
@@ -43,5 +43,8 @@ object InstagramZoneGuard {
     }
 
     private const val REEL_DESCRIPTION_PREFIX = "Reel by "
-    private const val REEL_DESCRIPTION_SUFFIX = ". Double tap to play or pause."
+    private val REEL_DESCRIPTION_SUFFIXES = listOf(
+        ". Double tap to play or pause.",
+        ". Double-tap to play or pause.",
+    )
 }

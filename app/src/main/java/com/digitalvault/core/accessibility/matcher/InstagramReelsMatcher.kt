@@ -12,7 +12,10 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val FRIENDS_TAB_LABEL = "Friends"
     private const val DIRECT_MESSAGE_REPLY_PREFIX = "Reply to"
     private const val REEL_DESCRIPTION_PREFIX = "Reel by "
-    private const val REEL_DESCRIPTION_SUFFIX = ". Double tap to play or pause."
+    private val REEL_DESCRIPTION_SUFFIXES = listOf(
+        ". Double tap to play or pause.",
+        ". Double-tap to play or pause.",
+    )
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
@@ -33,7 +36,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
         if (node.isVisibleToUser &&
             description != null &&
             description.startsWith(REEL_DESCRIPTION_PREFIX) &&
-            description.endsWith(REEL_DESCRIPTION_SUFFIX)
+            REEL_DESCRIPTION_SUFFIXES.any { description.endsWith(it) }
         ) {
             return true
         }
