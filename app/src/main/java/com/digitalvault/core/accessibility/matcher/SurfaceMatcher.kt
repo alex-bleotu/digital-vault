@@ -47,3 +47,29 @@ fun AccessibilityNodeInfo.anyDescendantTextMatches(predicate: (CharSequence) -> 
 
     return false
 }
+
+fun AccessibilityNodeInfo.hasDescendantWithExactText(target: String): Boolean {
+    if (text?.toString() == target || contentDescription?.toString() == target) {
+        return true
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.hasDescendantWithExactText(target) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
+fun AccessibilityNodeInfo.anyVisibleDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
+    if (isVisibleToUser) {
+        contentDescription?.let { if (predicate(it)) return true }
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.anyVisibleDescendantDescriptionMatches(predicate) == true) {
+            return true
+        }
+    }
+
+    return false
+}

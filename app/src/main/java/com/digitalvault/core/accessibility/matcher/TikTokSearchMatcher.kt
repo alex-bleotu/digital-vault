@@ -13,11 +13,17 @@ object TikTokSearchMatcher : SurfaceMatcher {
     private const val RECENT_SEARCH_TIME_LABEL = "Time"
     private const val COMMENT_INPUT_PREFIX = "Add comment"
     private const val EDIT_TEXT_CLASS_NAME = "android.widget.EditText"
+    private const val BACK_LABEL = "Back"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
-        searchResultTabLabels.all { root.findVisibleNodesByText(it).isNotEmpty() } ||
+    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+        if (root.hasDescendantWithExactText(BACK_LABEL)) {
+            return false
+        }
+
+        return searchResultTabLabels.all { root.findVisibleNodesByText(it).isNotEmpty() } ||
             isSearchEntryScreen(root) ||
             hasSearchEditText(root)
+    }
 
     private fun isSearchEntryScreen(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(CLOSE_LABEL) && root.hasVisibleNodeWithExactText(RECENT_SEARCH_TIME_LABEL)

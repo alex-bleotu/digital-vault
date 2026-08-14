@@ -13,8 +13,6 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val DIRECT_MESSAGE_REPLY_PREFIX = "Reply to"
     private const val REEL_DESCRIPTION_PREFIX = "Reel by "
     private const val REEL_DESCRIPTION_SUFFIX = ". Double tap to play or pause."
-    private const val BACK_LABEL = "Back"
-    private const val CLOSE_LABEL = "Close"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
@@ -22,9 +20,6 @@ object InstagramReelsMatcher : SurfaceMatcher {
         }
         if (isTabBarShowing(root)) {
             return true
-        }
-        if (root.hasVisibleNodeWithExactText(BACK_LABEL) || root.hasVisibleNodeWithExactText(CLOSE_LABEL)) {
-            return false
         }
 
         return isWatchingReel(root)

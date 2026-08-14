@@ -21,7 +21,7 @@ object TikTokFeedMatcher : SurfaceMatcher {
         if (isTabBarShowing(root)) {
             return true
         }
-        if (root.hasVisibleNodeWithExactText(BACK_LABEL)) {
+        if (root.hasDescendantWithExactText(BACK_LABEL)) {
             return false
         }
 
@@ -34,6 +34,6 @@ object TikTokFeedMatcher : SurfaceMatcher {
 
     private fun isWatchingFeedVideo(root: AccessibilityNodeInfo): Boolean =
         videoActionDescriptionPrefixes.all { prefix ->
-            root.anyDescendantDescriptionMatches { it.startsWith(prefix) }
+            root.anyVisibleDescendantDescriptionMatches { it.startsWith(prefix) }
         }
 }

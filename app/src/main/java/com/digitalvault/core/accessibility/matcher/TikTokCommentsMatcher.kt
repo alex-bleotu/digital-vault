@@ -12,7 +12,7 @@ object TikTokCommentsMatcher : SurfaceMatcher {
     private const val BACK_LABEL = "Back"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
-        if (root.hasVisibleNodeWithExactText(BACK_LABEL)) {
+        if (root.hasDescendantWithExactText(BACK_LABEL)) {
             return false
         }
 
