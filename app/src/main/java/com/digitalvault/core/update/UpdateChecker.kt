@@ -1,6 +1,5 @@
 package com.digitalvault.core.update
 
-import android.util.Log
 import com.digitalvault.BuildConfig
 import java.net.HttpURLConnection
 import java.net.URL
@@ -8,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val UPDATE_TAG = "VaultUpdate"
 private const val TIMEOUT_MILLIS = 10_000
 
 object UpdateChecker {
@@ -51,8 +49,6 @@ object UpdateChecker {
             val downloadUrl = apkDownloadUrl ?: return@withContext null
 
             UpdateInfo(versionCode = versionCode, versionTag = tagName, apkDownloadUrl = downloadUrl)
-        }.onFailure {
-            Log.w(UPDATE_TAG, "Update check failed", it)
         }.getOrNull()
     }
 }
