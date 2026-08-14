@@ -22,6 +22,8 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
+import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
+import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.RulesRepository
@@ -51,6 +53,7 @@ private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val TREE_DUMP_TAG = "VaultTreeDump"
 private const val TREE_DUMP_THROTTLE_MILLIS = 3_000L
+private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -91,6 +94,15 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var allowedInstagramReelIdentity: String? = null
+
+    @Volatile
+    private var isTikTokBackNavigated: Boolean = false
+
+    @Volatile
+    private var instagramBackReelLockedIdentity: String? = null
+
+    @Volatile
+    private var isInstagramBackReelExempt: Boolean = false
 
     @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
@@ -186,6 +198,10 @@ class VaultAccessibilityService : AccessibilityService() {
             -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                }
+                if (packageName == TIKTOK_PACKAGE_NAME) {
+                    matchedRoot(packageName)?.let { updateTikTokZone(it) }
                 }
                 if (packageName in SettingsGuard.watchedPackages) {
                     guardSettingsScreen()
@@ -206,6 +222,9 @@ class VaultAccessibilityService : AccessibilityService() {
             }
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                }
                 val rule = surfaceRules[packageName] ?: return
                 evaluateSurface(packageName, rule)
             }
@@ -239,6 +258,9 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         if (isSuppressedInstagramZone(packageName)) {
+            return
+        }
+        if (isSuppressedInstagramBackReelZone(packageName)) {
             return
         }
         activeBlockedPackage = packageName
@@ -318,6 +340,59 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedInstagramZone(packageName: String): Boolean =
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramSettingsOrProfile
 
+    private fun updateTikTokZone(root: AccessibilityNodeInfo) {
+        val isOnMainTabBar = root.findVisibleNodesByText("For You").isNotEmpty() &&
+            root.findVisibleNodesByText("Following").isNotEmpty()
+        if (isOnMainTabBar) {
+            isTikTokBackNavigated = false
+
+            return
+        }
+        if (root.hasDescendantWithExactText("Back")) {
+            isTikTokBackNavigated = true
+        }
+    }
+
+    private fun isSuppressedTikTokZone(packageName: String): Boolean =
+        packageName == TIKTOK_PACKAGE_NAME && isTikTokBackNavigated
+
+    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
+        if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
+            instagramBackReelLockedIdentity = null
+            isInstagramBackReelExempt = false
+
+            return
+        }
+        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
+        val lockedIdentity = instagramBackReelLockedIdentity
+        if (lockedIdentity == null) {
+            instagramBackReelLockedIdentity = identity
+            isInstagramBackReelExempt = true
+        } else if (lockedIdentity != identity) {
+            instagramBackReelLockedIdentity = identity
+            isInstagramBackReelExempt = false
+        }
+    }
+
+    private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
+        countDescendantsWithExactDescription(root, "Image of Post") >= 2
+
+    private fun countDescendantsWithExactDescription(node: AccessibilityNodeInfo, target: String): Int {
+        var count = if (node.contentDescription?.toString() == target) 1 else 0
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            count += countDescendantsWithExactDescription(child, target)
+            if (count >= 2) {
+                return count
+            }
+        }
+
+        return count
+    }
+
+    private fun isSuppressedInstagramBackReelZone(packageName: String): Boolean =
+        packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
+
     private fun matchedRoot(packageName: String): AccessibilityNodeInfo? {
         val root = rootInActiveWindow ?: return null
 
@@ -346,6 +421,16 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
+        if (isSuppressedTikTokZone(packageName)) {
+            resetSurface(packageName)
+
+            return
+        }
+        if (isSuppressedInstagramBackReelZone(packageName)) {
+            resetSurface(packageName)
+
+            return
+        }
         val root = matchedRoot(packageName) ?: return
         val matchers = matchersFor(packageName, rule)
         if (matchers.isEmpty()) {
@@ -364,10 +449,19 @@ class VaultAccessibilityService : AccessibilityService() {
             }
             entry.graceJob = serviceScope.launch {
                 delay(settleMillis)
-                val stillInTarget = matchedRoot(packageName)?.let { currentRoot ->
-                    matchers.any { it.isTargetSurface(currentRoot) }
-                } == true
-                if (stillInTarget) {
+                if (isSuppressedTikTokZone(packageName)) {
+                    resetSurface(packageName)
+                    return@launch
+                }
+                if (isSuppressedInstagramBackReelZone(packageName)) {
+                    resetSurface(packageName)
+                    return@launch
+                }
+                val currentRoot = matchedRoot(packageName)
+                val matchedIds = currentRoot?.let { r -> matchers.filter { it.isTargetSurface(r) }.map { it.id } }.orEmpty()
+                if (matchedIds.isNotEmpty()) {
+                    Log.i(ENGINE_TAG, "Block decision for $packageName matched: $matchedIds")
+                    currentRoot?.let { dumpTree(it) }
                     blockSurface(packageName, rule)
                 } else {
                     resetSurface(packageName)
@@ -387,6 +481,12 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         if (isSuppressedInstagramZone(packageName)) {
+            return
+        }
+        if (isSuppressedTikTokZone(packageName)) {
+            return
+        }
+        if (isSuppressedInstagramBackReelZone(packageName)) {
             return
         }
         activeBlockedPackage = packageName
