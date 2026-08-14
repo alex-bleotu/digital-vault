@@ -70,7 +70,7 @@ class RulesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadInstalledApps() {
-        if (uiState.installedApps.isNotEmpty() || uiState.isLoadingApps) {
+        if (uiState.isLoadingApps) {
             return
         }
         uiState = uiState.copy(isLoadingApps = true)

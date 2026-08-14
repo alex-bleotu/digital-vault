@@ -198,7 +198,7 @@ class VaultAccessibilityService : AccessibilityService() {
             -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
-                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = false) }
                 }
                 if (packageName == TIKTOK_PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateTikTokZone(it) }
@@ -223,7 +223,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
-                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = true) }
                 }
                 val rule = surfaceRules[packageName] ?: return
                 evaluateSurface(packageName, rule)
@@ -356,7 +356,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedTikTokZone(packageName: String): Boolean =
         packageName == TIKTOK_PACKAGE_NAME && isTikTokBackNavigated
 
-    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
+    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo, isScrollEvent: Boolean) {
         if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
@@ -368,7 +368,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (lockedIdentity == null) {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = true
-        } else if (lockedIdentity != identity) {
+        } else if (lockedIdentity != identity && isScrollEvent) {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = false
         }
