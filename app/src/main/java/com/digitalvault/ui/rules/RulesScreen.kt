@@ -729,22 +729,22 @@ private fun AppIcon(
     val colors = VaultTheme.colors
     val shape = RoundedCornerShape(size / 4)
 
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(shape)
-            .background(colors.surfaceRaised),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (icon != null) {
-            Image(
-                bitmap = icon,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(size)
-                    .clip(shape),
-            )
-        } else {
+    if (icon != null) {
+        Image(
+            bitmap = icon,
+            contentDescription = null,
+            modifier = Modifier
+                .size(size)
+                .clip(shape),
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+                .background(colors.surfaceRaised),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = label.take(1).uppercase(),
                 style = MaterialTheme.typography.labelLarge,

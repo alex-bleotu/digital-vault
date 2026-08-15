@@ -37,11 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.digitalvault.BuildConfig
 import com.digitalvault.ui.lock.LockScreen
 import com.digitalvault.ui.theme.VaultTheme
 import java.time.Instant
@@ -210,6 +212,15 @@ fun VaultScreen(
                 Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
             }
         }
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "VERSION ${BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.textMuted,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

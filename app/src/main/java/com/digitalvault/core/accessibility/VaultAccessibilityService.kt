@@ -49,6 +49,8 @@ private const val ICON_SIZE_PX = 144
 private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
+private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
+private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
@@ -107,6 +109,8 @@ class VaultAccessibilityService : AccessibilityService() {
         var isInTarget: Boolean = false
         var graceJob: Job? = null
     }
+
+    private val selfTriggeredHomeGuardRetryJobs = mutableMapOf<String, Job>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -404,6 +408,7 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         if (isWithinSelfTriggeredHomeGuard()) {
             resetSurface(packageName)
+            scheduleSelfTriggeredHomeGuardRetry(packageName, rule)
 
             return
         }
@@ -427,13 +432,16 @@ class VaultAccessibilityService : AccessibilityService() {
         if (matchers.isEmpty()) {
             return
         }
-        val isInTarget = matchers.any { it.isTargetSurface(root) }
+        val matchedMatchers = matchers.filter { it.isTargetSurface(root) }
+        val isInTarget = matchedMatchers.isNotEmpty()
         val entry = surfaceEntries.getOrPut(packageName) { SurfaceEntry() }
 
         if (isInTarget && !entry.isInTarget) {
             entry.isInTarget = true
             val graceMillis = rule.graceSeconds * 1_000L
-            val settleMillis = if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+            val settleMillis = if (matchedMatchers.any { it.id in FAST_TRIGGER_SURFACE_IDS }) {
+                FAST_TRIGGER_SETTLE_MILLIS
+            } else if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                 maxOf(graceMillis, INSTAGRAM_SETTLE_GUARD_MILLIS)
             } else {
                 graceMillis
@@ -529,6 +537,16 @@ class VaultAccessibilityService : AccessibilityService() {
         val request = audioFocusRequest ?: return
         manager.abandonAudioFocusRequest(request)
         audioFocusRequest = null
+    }
+
+    private fun scheduleSelfTriggeredHomeGuardRetry(packageName: String, rule: AppRule) {
+        if (selfTriggeredHomeGuardRetryJobs[packageName]?.isActive == true) {
+            return
+        }
+        selfTriggeredHomeGuardRetryJobs[packageName] = serviceScope.launch {
+            delay(SELF_TRIGGERED_HOME_GUARD_MILLIS)
+            evaluateSurface(packageName, rule)
+        }
     }
 
     private fun resetSurface(packageName: String) {

@@ -9,6 +9,7 @@ object SurfaceMatchers {
         InstagramExplorePreviewMatcher,
         InstagramExploreMatcher,
         InstagramSpeedMatcher,
+        InstagramShareMatcher,
         TikTokFeedMatcher,
         TikTokSearchMatcher,
         TikTokSpeedMatcher,
