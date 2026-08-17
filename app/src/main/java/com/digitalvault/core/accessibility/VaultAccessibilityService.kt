@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -17,6 +18,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.digitalvault.R
+import com.digitalvault.core.accessibility.matcher.InstagramReelsMatcher
+import com.digitalvault.core.accessibility.matcher.InstagramShareMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
@@ -51,6 +54,8 @@ private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
+private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
+private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.3
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
@@ -101,6 +106,18 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var isInstagramBackReelExempt: Boolean = false
+
+    @Volatile
+    private var isInstagramReelContext: Boolean = false
+
+    @Volatile
+    private var isInstagramHomeFeed: Boolean = true
+
+    @Volatile
+    private var instagramHomeScrollAccumulatedPx: Int = 0
+
+    @Volatile
+    private var hasInstagramHomeScrollTriggeredOnce: Boolean = false
 
     @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
@@ -196,6 +213,8 @@ class VaultAccessibilityService : AccessibilityService() {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = false) }
+                    matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
+                    matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
                 }
                 if (packageName == TIKTOK_PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateTikTokZone(it) }
@@ -221,6 +240,9 @@ class VaultAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = true) }
+                    matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
+                    matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
+                    handleInstagramHomeFeedScroll(event)
                 }
                 val rule = surfaceRules[packageName] ?: return
                 evaluateSurface(packageName, rule)
@@ -389,10 +411,95 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedInstagramBackReelZone(packageName: String): Boolean =
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
 
+    private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
+        if (InstagramShareMatcher.isTargetSurface(root)) {
+            return
+        }
+        isInstagramReelContext = InstagramReelsMatcher.isTargetSurface(root)
+    }
+
+    private fun updateInstagramHomeFeedContext(root: AccessibilityNodeInfo) {
+        if (InstagramShareMatcher.isTargetSurface(root)) {
+            return
+        }
+        if (InstagramZoneGuard.isHomeFeed(root)) {
+            isInstagramHomeFeed = true
+
+            return
+        }
+        val isKnownOtherScreen = InstagramZoneGuard.isMainReelsTab(root) ||
+            InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
+            InstagramReelsMatcher.isTargetSurface(root) ||
+            isInstagramGridScreen(root)
+        if (isKnownOtherScreen && isInstagramHomeFeed) {
+            isInstagramHomeFeed = false
+            instagramHomeScrollAccumulatedPx = 0
+        }
+    }
+
+    private fun handleInstagramHomeFeedScroll(event: AccessibilityEvent) {
+        if (!isInstagramHomeFeed || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return
+        }
+        val deltaY = event.scrollDeltaY
+        if (deltaY <= 0) {
+            return
+        }
+        instagramHomeScrollAccumulatedPx += deltaY
+        val triggerFraction = if (hasInstagramHomeScrollTriggeredOnce) {
+            HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION
+        } else {
+            HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION
+        }
+        val triggerThresholdPx = (resources.displayMetrics.heightPixels * triggerFraction).toInt()
+        if (instagramHomeScrollAccumulatedPx < triggerThresholdPx) {
+            return
+        }
+        instagramHomeScrollAccumulatedPx = 0
+        hasInstagramHomeScrollTriggeredOnce = true
+        triggerInstagramHomeFeedScrollBlock()
+    }
+
+    private fun triggerInstagramHomeFeedScrollBlock() {
+        val packageName = InstagramZoneGuard.PACKAGE_NAME
+        val rule = surfaceRules[packageName] ?: fullBlockRules[packageName] ?: return
+        if (isTemporarilyAllowed(packageName)) {
+            return
+        }
+        if (overlayController?.isShowing == true) {
+            return
+        }
+        if (activeBlockedPackage == packageName) {
+            return
+        }
+        if (isWithinSelfTriggeredHomeGuard()) {
+            return
+        }
+        activeBlockedPackage = packageName
+        goHome(packageName)
+        val usedToday = hasUsedBreakToday(packageName)
+        showTimeoutWall(
+            loadAppLabel(packageName),
+            loadAppIcon(packageName),
+            allowBreak = rule.allowBreak && !usedToday,
+            breakUsedToday = rule.allowBreak && usedToday,
+        ) {
+            dismissForBreak(packageName)
+        }
+    }
+
     private fun matchedRoot(packageName: String): AccessibilityNodeInfo? {
         val root = rootInActiveWindow ?: return null
 
         return if (root.packageName?.toString() == packageName) root else null
+    }
+
+    private fun isSurfaceMatcherActive(matcher: SurfaceMatcher, root: AccessibilityNodeInfo): Boolean {
+        if (matcher.id in FAST_TRIGGER_SURFACE_IDS && !isInstagramReelContext) {
+            return false
+        }
+
+        return matcher.isTargetSurface(root)
     }
 
     private fun matchersFor(packageName: String, rule: AppRule): List<SurfaceMatcher> =
@@ -432,7 +539,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (matchers.isEmpty()) {
             return
         }
-        val matchedMatchers = matchers.filter { it.isTargetSurface(root) }
+        val matchedMatchers = matchers.filter { isSurfaceMatcherActive(it, root) }
         val isInTarget = matchedMatchers.isNotEmpty()
         val entry = surfaceEntries.getOrPut(packageName) { SurfaceEntry() }
 
@@ -457,7 +564,7 @@ class VaultAccessibilityService : AccessibilityService() {
                     return@launch
                 }
                 val currentRoot = matchedRoot(packageName)
-                val isStillInTarget = currentRoot != null && matchers.any { it.isTargetSurface(currentRoot) }
+                val isStillInTarget = currentRoot != null && matchers.any { isSurfaceMatcherActive(it, currentRoot) }
                 if (isStillInTarget) {
                     blockSurface(packageName, rule)
                 } else {
