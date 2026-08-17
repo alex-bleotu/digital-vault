@@ -26,6 +26,7 @@ import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
+import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.RulesRepository
@@ -55,7 +56,7 @@ private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
 private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
-private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.3
+private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
@@ -212,7 +213,7 @@ class VaultAccessibilityService : AccessibilityService() {
             -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
-                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = false) }
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
                     matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
                 }
@@ -239,7 +240,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
-                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it, isScrollEvent = true) }
+                    matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
                     matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
                     handleInstagramHomeFeedScroll(event)
@@ -374,7 +375,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedTikTokZone(packageName: String): Boolean =
         packageName == TIKTOK_PACKAGE_NAME && isTikTokBackNavigated
 
-    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo, isScrollEvent: Boolean) {
+    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
         if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
@@ -386,9 +387,8 @@ class VaultAccessibilityService : AccessibilityService() {
         if (lockedIdentity == null) {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = true
-        } else if (lockedIdentity != identity && isScrollEvent) {
+        } else if (lockedIdentity != identity) {
             instagramBackReelLockedIdentity = identity
-            isInstagramBackReelExempt = false
         }
     }
 
@@ -427,10 +427,12 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
+        val hasMainTabBar = root.hasVisibleNodeWithExactText("Home") && root.hasVisibleNodeWithExactText("Profile")
+        val isImmersiveReelViewer = !hasMainTabBar && InstagramZoneGuard.findReelIdentity(root) != null
         val isKnownOtherScreen = InstagramZoneGuard.isMainReelsTab(root) ||
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
-            InstagramReelsMatcher.isTargetSurface(root) ||
-            isInstagramGridScreen(root)
+            isInstagramGridScreen(root) ||
+            isImmersiveReelViewer
         if (isKnownOtherScreen && isInstagramHomeFeed) {
             isInstagramHomeFeed = false
             instagramHomeScrollAccumulatedPx = 0
