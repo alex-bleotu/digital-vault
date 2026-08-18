@@ -46,6 +46,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val DISMISS_MINUTES = 5
 private const val HOLD_MILLIS = 1600
@@ -58,6 +59,8 @@ private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
 private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
 private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
+private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
+private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -107,6 +110,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var isInstagramBackReelExempt: Boolean = false
+
+    @Volatile
+    private var wasLastInstagramScreenNonExemptOrigin: Boolean = false
 
     @Volatile
     private var isInstagramReelContext: Boolean = false
@@ -331,7 +337,7 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun updateInstagramZone(root: AccessibilityNodeInfo) {
-        if (InstagramZoneGuard.isMainReelsTab(root)) {
+        if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
             isInstagramSettingsOrProfile = false
             allowedInstagramReelIdentity = null
 
@@ -376,30 +382,48 @@ class VaultAccessibilityService : AccessibilityService() {
         packageName == TIKTOK_PACKAGE_NAME && isTikTokBackNavigated
 
     private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
-        if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
+        val isExploreGrid = isInstagramExploreGridScreen(root)
+        val isLikedGrid = isInstagramLikedGridScreen(root)
+        if (InstagramZoneGuard.isMainReelsTab(root) || isExploreGrid || isLikedGrid) {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
+            wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid)
 
             return
         }
-        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
+        val identity = InstagramZoneGuard.findReelIdentity(root)
+        if (identity == null) {
+            wasLastInstagramScreenNonExemptOrigin = false
+
+            return
+        }
         val lockedIdentity = instagramBackReelLockedIdentity
         if (lockedIdentity == null) {
             instagramBackReelLockedIdentity = identity
-            isInstagramBackReelExempt = true
+            isInstagramBackReelExempt = !wasLastInstagramScreenNonExemptOrigin
+            wasLastInstagramScreenNonExemptOrigin = false
         } else if (lockedIdentity != identity) {
             instagramBackReelLockedIdentity = identity
         }
     }
 
-    private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
-        countDescendantsWithExactDescription(root, "Image of Post") >= 2
+    private fun isInstagramExploreGridScreen(root: AccessibilityNodeInfo): Boolean =
+        countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_MARKER) >= 2
 
-    private fun countDescendantsWithExactDescription(node: AccessibilityNodeInfo, target: String): Int {
-        var count = if (node.contentDescription?.toString() == target) 1 else 0
+    private fun isInstagramLikedGridScreen(root: AccessibilityNodeInfo): Boolean =
+        countDescendantsWithDescription(root, exact = GRID_TILE_DESCRIPTION_EXACT, marker = null) >= 2
+
+    private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
+        isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root)
+
+    private fun countDescendantsWithDescription(node: AccessibilityNodeInfo, exact: String?, marker: String?): Int {
+        val description = node.contentDescription?.toString()
+        val matches = description != null &&
+            ((exact != null && description == exact) || (marker != null && description.contains(marker)))
+        var count = if (matches) 1 else 0
         for (index in 0 until node.childCount) {
             val child = node.getChild(index) ?: continue
-            count += countDescendantsWithExactDescription(child, target)
+            count += countDescendantsWithDescription(child, exact, marker)
             if (count >= 2) {
                 return count
             }
@@ -556,7 +580,9 @@ class VaultAccessibilityService : AccessibilityService() {
                 graceMillis
             }
             entry.graceJob = serviceScope.launch {
-                delay(settleMillis)
+                withContext(Dispatchers.Default) {
+                    delay(settleMillis)
+                }
                 if (isSuppressedTikTokZone(packageName)) {
                     resetSurface(packageName)
                     return@launch
@@ -653,7 +679,9 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         selfTriggeredHomeGuardRetryJobs[packageName] = serviceScope.launch {
-            delay(SELF_TRIGGERED_HOME_GUARD_MILLIS)
+            withContext(Dispatchers.Default) {
+                delay(SELF_TRIGGERED_HOME_GUARD_MILLIS)
+            }
             evaluateSurface(packageName, rule)
         }
     }
