@@ -24,6 +24,7 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
+import com.digitalvault.core.accessibility.matcher.anyVisibleDescendantDescriptionMatches
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
@@ -61,6 +62,7 @@ private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
+private const val GRID_TILE_DESCRIPTION_VIEW_COUNT_MARKER = "View Count"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -115,6 +117,12 @@ class VaultAccessibilityService : AccessibilityService() {
     private var wasLastInstagramScreenNonExemptOrigin: Boolean = false
 
     @Volatile
+    private var wasLastInstagramScreenLikedGridOrigin: Boolean = false
+
+    @Volatile
+    private var isInstagramBackReelExemptFromLikedGrid: Boolean = false
+
+    @Volatile
     private var isInstagramReelContext: Boolean = false
 
     @Volatile
@@ -131,7 +139,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private class SurfaceEntry {
         var isInTarget: Boolean = false
-        var graceJob: Job? = null
+        var enteredTargetAtMillis: Long = 0L
     }
 
     private val selfTriggeredHomeGuardRetryJobs = mutableMapOf<String, Job>()
@@ -384,16 +392,20 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
         val isExploreGrid = isInstagramExploreGridScreen(root)
         val isLikedGrid = isInstagramLikedGridScreen(root)
-        if (InstagramZoneGuard.isMainReelsTab(root) || isExploreGrid || isLikedGrid) {
+        val isSavedGrid = isInstagramSavedGridScreen(root)
+        if (InstagramZoneGuard.isMainReelsTab(root) || isExploreGrid || isLikedGrid || isSavedGrid) {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
-            wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid)
+            isInstagramBackReelExemptFromLikedGrid = false
+            wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid && !isSavedGrid)
+            wasLastInstagramScreenLikedGridOrigin = isLikedGrid || isSavedGrid
 
             return
         }
         val identity = InstagramZoneGuard.findReelIdentity(root)
         if (identity == null) {
             wasLastInstagramScreenNonExemptOrigin = false
+            wasLastInstagramScreenLikedGridOrigin = false
 
             return
         }
@@ -401,9 +413,17 @@ class VaultAccessibilityService : AccessibilityService() {
         if (lockedIdentity == null) {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = !wasLastInstagramScreenNonExemptOrigin
+            isInstagramBackReelExemptFromLikedGrid = isInstagramBackReelExempt && wasLastInstagramScreenLikedGridOrigin
             wasLastInstagramScreenNonExemptOrigin = false
+            wasLastInstagramScreenLikedGridOrigin = false
         } else if (lockedIdentity != identity) {
             instagramBackReelLockedIdentity = identity
+            if (isInstagramBackReelExemptFromLikedGrid) {
+                isInstagramBackReelExempt = false
+                isInstagramBackReelExemptFromLikedGrid = false
+            } else if (root.hasVisibleNodeWithExactText("Suggested")) {
+                isInstagramBackReelExempt = false
+            }
         }
     }
 
@@ -413,12 +433,16 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isInstagramLikedGridScreen(root: AccessibilityNodeInfo): Boolean =
         countDescendantsWithDescription(root, exact = GRID_TILE_DESCRIPTION_EXACT, marker = null) >= 2
 
+    private fun isInstagramSavedGridScreen(root: AccessibilityNodeInfo): Boolean =
+        countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_VIEW_COUNT_MARKER) >= 2
+
     private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
-        isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root)
+        isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root) || isInstagramSavedGridScreen(root)
 
     private fun countDescendantsWithDescription(node: AccessibilityNodeInfo, exact: String?, marker: String?): Int {
         val description = node.contentDescription?.toString()
-        val matches = description != null &&
+        val matches = node.isVisibleToUser &&
+            description != null &&
             ((exact != null && description == exact) || (marker != null && description.contains(marker)))
         var count = if (matches) 1 else 0
         for (index in 0 until node.childCount) {
@@ -436,11 +460,29 @@ class VaultAccessibilityService : AccessibilityService() {
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
-        if (InstagramShareMatcher.isTargetSurface(root)) {
+        if (InstagramShareMatcher.isTargetSurface(root) ||
+            InstagramReelsMatcher.isTargetSurface(root) ||
+            isInstagramLikesAndPlaysDropdown(root)
+        ) {
+            isInstagramReelContext = true
+
             return
         }
-        isInstagramReelContext = InstagramReelsMatcher.isTargetSurface(root)
+        if (isKnownNonReelInstagramScreen(root)) {
+            isInstagramReelContext = false
+        }
     }
+
+    private fun isInstagramLikesAndPlaysDropdown(root: AccessibilityNodeInfo): Boolean =
+        root.anyVisibleDescendantDescriptionMatches { it.endsWith(" views") } &&
+            root.anyVisibleDescendantDescriptionMatches { it.endsWith(" likes") }
+
+    private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
+        InstagramZoneGuard.isMainReelsTab(root) ||
+            InstagramZoneGuard.isHomeFeed(root) ||
+            InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
+            isInstagramGridScreen(root) ||
+            root.findVisibleNodesByText("Reply to").isNotEmpty()
 
     private fun updateInstagramHomeFeedContext(root: AccessibilityNodeInfo) {
         if (InstagramShareMatcher.isTargetSurface(root)) {
@@ -569,8 +611,11 @@ class VaultAccessibilityService : AccessibilityService() {
         val isInTarget = matchedMatchers.isNotEmpty()
         val entry = surfaceEntries.getOrPut(packageName) { SurfaceEntry() }
 
-        if (isInTarget && !entry.isInTarget) {
-            entry.isInTarget = true
+        if (isInTarget) {
+            if (!entry.isInTarget) {
+                entry.isInTarget = true
+                entry.enteredTargetAtMillis = SystemClock.elapsedRealtime()
+            }
             val graceMillis = rule.graceSeconds * 1_000L
             val settleMillis = if (matchedMatchers.any { it.id in FAST_TRIGGER_SURFACE_IDS }) {
                 FAST_TRIGGER_SETTLE_MILLIS
@@ -579,27 +624,11 @@ class VaultAccessibilityService : AccessibilityService() {
             } else {
                 graceMillis
             }
-            entry.graceJob = serviceScope.launch {
-                withContext(Dispatchers.Default) {
-                    delay(settleMillis)
-                }
-                if (isSuppressedTikTokZone(packageName)) {
-                    resetSurface(packageName)
-                    return@launch
-                }
-                if (isSuppressedInstagramBackReelZone(packageName)) {
-                    resetSurface(packageName)
-                    return@launch
-                }
-                val currentRoot = matchedRoot(packageName)
-                val isStillInTarget = currentRoot != null && matchers.any { isSurfaceMatcherActive(it, currentRoot) }
-                if (isStillInTarget) {
-                    blockSurface(packageName, rule)
-                } else {
-                    resetSurface(packageName)
-                }
+            val elapsed = SystemClock.elapsedRealtime() - entry.enteredTargetAtMillis
+            if (elapsed >= settleMillis) {
+                blockSurface(packageName, rule)
             }
-        } else if (!isInTarget && entry.isInTarget) {
+        } else if (entry.isInTarget) {
             resetSurface(packageName)
         }
     }
@@ -688,8 +717,6 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private fun resetSurface(packageName: String) {
         surfaceEntries[packageName]?.let { entry ->
-            entry.graceJob?.cancel()
-            entry.graceJob = null
             entry.isInTarget = false
         }
     }

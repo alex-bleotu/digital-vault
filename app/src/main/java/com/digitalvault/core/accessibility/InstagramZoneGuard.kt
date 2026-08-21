@@ -30,6 +30,7 @@ object InstagramZoneGuard {
         val description = root.contentDescription?.toString()
         if (root.isVisibleToUser &&
             description != null &&
+            root.className?.toString() != GRID_TILE_CLASS_NAME &&
             description.startsWith(REEL_DESCRIPTION_PREFIX) &&
             REEL_DESCRIPTION_SUFFIXES.any { description.endsWith(it) }
         ) {
@@ -51,4 +52,5 @@ object InstagramZoneGuard {
         ". Double tap to play or pause.",
         ". Double-tap to play or pause.",
     )
+    private const val GRID_TILE_CLASS_NAME = "android.widget.Button"
 }
