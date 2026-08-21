@@ -17,6 +17,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
         ". Double-tap to play or pause.",
     )
     private const val GRID_TILE_CLASS_NAME = "android.widget.Button"
+    private const val COMMENT_INPUT_CLASS_NAME = "android.widget.AutoCompleteTextView"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
@@ -28,6 +29,9 @@ object InstagramReelsMatcher : SurfaceMatcher {
         if (isLikesAndPlaysDropdown(root)) {
             return true
         }
+        if (isCommentsDrawer(root)) {
+            return true
+        }
 
         return isWatchingReel(root)
     }
@@ -35,6 +39,23 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private fun isLikesAndPlaysDropdown(root: AccessibilityNodeInfo): Boolean =
         root.anyVisibleDescendantDescriptionMatches { it.endsWith(" views") } &&
             root.anyVisibleDescendantDescriptionMatches { it.endsWith(" likes") }
+
+    private fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
+        hasVisibleDescendantOfClass(root, COMMENT_INPUT_CLASS_NAME)
+
+    private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {
+        if (node.isVisibleToUser && node.className?.toString() == className) {
+            return true
+        }
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            if (hasVisibleDescendantOfClass(child, className)) {
+                return true
+            }
+        }
+
+        return false
+    }
 
     private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) && root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL)
