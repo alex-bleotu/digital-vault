@@ -24,7 +24,6 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
-import com.digitalvault.core.accessibility.matcher.anyVisibleDescendantDescriptionMatches
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
@@ -460,10 +459,7 @@ class VaultAccessibilityService : AccessibilityService() {
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
-        if (InstagramShareMatcher.isTargetSurface(root) ||
-            InstagramReelsMatcher.isTargetSurface(root) ||
-            isInstagramLikesAndPlaysDropdown(root)
-        ) {
+        if (InstagramShareMatcher.isTargetSurface(root) || InstagramReelsMatcher.isTargetSurface(root)) {
             isInstagramReelContext = true
 
             return
@@ -473,16 +469,16 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isInstagramLikesAndPlaysDropdown(root: AccessibilityNodeInfo): Boolean =
-        root.anyVisibleDescendantDescriptionMatches { it.endsWith(" views") } &&
-            root.anyVisibleDescendantDescriptionMatches { it.endsWith(" likes") }
-
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
         InstagramZoneGuard.isMainReelsTab(root) ||
             InstagramZoneGuard.isHomeFeed(root) ||
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
             isInstagramGridScreen(root) ||
-            root.findVisibleNodesByText("Reply to").isNotEmpty()
+            root.findVisibleNodesByText("Reply to").isNotEmpty() ||
+            isInstagramMainTabBarShowing(root)
+
+    private fun isInstagramMainTabBarShowing(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText("Home") && root.hasVisibleNodeWithExactText("Profile")
 
     private fun updateInstagramHomeFeedContext(root: AccessibilityNodeInfo) {
         if (InstagramShareMatcher.isTargetSurface(root)) {
