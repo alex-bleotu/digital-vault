@@ -18,6 +18,8 @@ object InstagramReelsMatcher : SurfaceMatcher {
     )
     private const val GRID_TILE_CLASS_NAME = "android.widget.Button"
     private const val COMMENT_INPUT_CLASS_NAME = "android.widget.AutoCompleteTextView"
+    private const val LIKES_AND_PLAYS_HEADER = "Likes and plays"
+    private const val REACTIONS_AND_PLAYS_HEADER = "Reactions and plays"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
@@ -37,8 +39,8 @@ object InstagramReelsMatcher : SurfaceMatcher {
     }
 
     private fun isLikesAndPlaysDropdown(root: AccessibilityNodeInfo): Boolean =
-        root.anyVisibleDescendantDescriptionMatches { it.endsWith(" views") } &&
-            root.anyVisibleDescendantDescriptionMatches { it.endsWith(" likes") }
+        root.hasVisibleNodeWithExactText(LIKES_AND_PLAYS_HEADER) ||
+            root.hasVisibleNodeWithExactText(REACTIONS_AND_PLAYS_HEADER)
 
     private fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
         hasVisibleDescendantOfClass(root, COMMENT_INPUT_CLASS_NAME)
