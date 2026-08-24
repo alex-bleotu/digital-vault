@@ -2,6 +2,8 @@ package com.digitalvault.core.permissions
 
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -13,6 +15,15 @@ import com.digitalvault.core.admin.VaultDeviceAdminReceiver
 class SetupPermissions(private val context: Context) {
 
     fun isOverlayGranted(): Boolean = Settings.canDrawOverlays(context)
+
+    fun isVpnActive(): Boolean {
+        val connectivityManager = context.getSystemService<ConnectivityManager>() ?: return false
+
+        return connectivityManager.allNetworks.any { network ->
+            val capabilities = connectivityManager.getNetworkCapabilities(network)
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        }
+    }
 
     fun isAccessibilityEnabled(): Boolean {
         val expected = VaultAccessibilityService.componentName(context.packageName)

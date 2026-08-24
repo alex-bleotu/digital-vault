@@ -6,11 +6,13 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.HealthRepository
 import com.digitalvault.core.data.vaultDataStore
 import com.digitalvault.core.permissions.SetupPermissions
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 class WatchdogWorker(
     context: Context,
@@ -25,6 +27,8 @@ class WatchdogWorker(
 
         val accessibilityLive = permissions.isAccessibilityEnabled()
         val overlayLive = permissions.isOverlayGranted()
+        val shouldVpnBeActive = DnsRepository(context.vaultDataStore).config.first().isVpnBlockingEnabled
+        val vpnLive = permissions.isVpnActive()
 
         when {
             !accessibilityLive ->
@@ -37,6 +41,12 @@ class WatchdogWorker(
                 VaultNotifications.showBrokenAlert(
                     context,
                     "The block screen can't appear. Open Digital Vault and grant overlay access.",
+                )
+
+            shouldVpnBeActive && !vpnLive ->
+                VaultNotifications.showBrokenAlert(
+                    context,
+                    "DNS blocking stopped running. Open Digital Vault's Shield tab to turn it back on.",
                 )
 
             else -> VaultNotifications.clearBrokenAlert(context)

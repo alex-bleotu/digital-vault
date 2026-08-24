@@ -35,6 +35,7 @@ import com.digitalvault.core.data.VaultRepository
 import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.core.data.vaultDataStore
+import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.lock.BlockOverlayController
 import java.time.Duration
 import java.time.Instant
@@ -313,6 +314,9 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun guardBrowser(packageName: String) {
+        if (VaultVpnService.isRunning.value) {
+            return
+        }
         if (overlayController?.isShowing == true) {
             return
         }
