@@ -2,6 +2,7 @@ package com.digitalvault.core.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.digitalvault.core.data.model.DnsConfig
@@ -12,12 +13,20 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {
         val BLOCKED_DOMAINS = stringSetPreferencesKey("dns_blocked_domains")
+        val VPN_BLOCKING_ENABLED = booleanPreferencesKey("dns_vpn_blocking_enabled")
     }
 
     val config: Flow<DnsConfig> = dataStore.data.map { preferences ->
         DnsConfig(
             blockedDomains = preferences[Keys.BLOCKED_DOMAINS].orEmpty(),
+            isVpnBlockingEnabled = preferences[Keys.VPN_BLOCKING_ENABLED] ?: false,
         )
+    }
+
+    suspend fun setVpnBlockingEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.VPN_BLOCKING_ENABLED] = enabled
+        }
     }
 
     suspend fun addBlockedDomain(domain: String) {

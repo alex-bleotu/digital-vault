@@ -8,11 +8,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.vaultDataStore
+import com.digitalvault.core.vpn.VaultVpnService
 import kotlinx.coroutines.launch
 
 data class ShieldUiState(
     val blockedDomains: List<String> = emptyList(),
     val newDomainDraft: String = "",
+    val isVpnBlockingEnabled: Boolean = false,
 )
 
 class ShieldViewModel(application: Application) : AndroidViewModel(application) {
@@ -27,6 +29,7 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
             dnsRepository.config.collect { config ->
                 uiState = uiState.copy(
                     blockedDomains = config.blockedDomains.sorted(),
+                    isVpnBlockingEnabled = config.isVpnBlockingEnabled,
                 )
             }
         }
@@ -47,6 +50,22 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
     fun removeBlockedDomain(domain: String) {
         viewModelScope.launch {
             dnsRepository.removeBlockedDomain(domain)
+        }
+    }
+
+    fun disableVpnBlocking() {
+        VaultVpnService.stop(getApplication())
+        viewModelScope.launch {
+            dnsRepository.setVpnBlockingEnabled(false)
+        }
+    }
+
+    fun onVpnPermissionResult(granted: Boolean) {
+        viewModelScope.launch {
+            dnsRepository.setVpnBlockingEnabled(granted)
+        }
+        if (granted) {
+            VaultVpnService.start(getApplication())
         }
     }
 }

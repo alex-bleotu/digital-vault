@@ -155,8 +155,10 @@ fun RulesScreen(
                 CircularProgressIndicator(color = colors.brass)
             }
         } else {
-            val (installedRules, deletedRules) = remember(state.rules, appByPackage) {
-                state.rules.partition { it.packageName in appByPackage }
+            val (installedRules, deletedRules) = remember(state.rules, appByPackage, labelByPackage) {
+                val (installed, deleted) = state.rules.partition { it.packageName in appByPackage }
+                installed.sortedBy { (labelByPackage[it.packageName] ?: it.packageName).lowercase() } to
+                    deleted.sortedBy { it.packageName.lowercase() }
             }
 
             LazyColumn(

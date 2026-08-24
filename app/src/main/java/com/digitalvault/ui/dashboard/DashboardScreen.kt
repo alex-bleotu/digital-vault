@@ -124,25 +124,25 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ModuleCard(
-                    title = "Reels & Feeds",
-                    status = if (state.surfaceBlockCount > 0) {
-                        "${state.surfaceBlockCount} armed"
+                    title = "Reels & Apps",
+                    status = if (state.surfaceBlockCount + state.fullBlockCount > 0) {
+                        "${state.surfaceBlockCount + state.fullBlockCount} armed"
                     } else {
                         "Not configured"
                     },
-                    isActive = state.surfaceBlockCount > 0,
+                    isActive = state.surfaceBlockCount + state.fullBlockCount > 0,
                     onClick = { onNavigate(VaultDestination.RULES) },
                     modifier = Modifier.weight(1f),
                 )
                 ModuleCard(
-                    title = "App Blocking",
-                    status = if (state.fullBlockCount > 0) {
-                        "${state.fullBlockCount} sealed"
+                    title = "Shield",
+                    status = if (state.blockedDomainCount > 0) {
+                        "${state.blockedDomainCount} domains"
                     } else {
                         "Not configured"
                     },
-                    isActive = state.fullBlockCount > 0,
-                    onClick = { onNavigate(VaultDestination.RULES) },
+                    isActive = state.blockedDomainCount > 0,
+                    onClick = { onNavigate(VaultDestination.SHIELD) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -152,13 +152,9 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ModuleCard(
-                    title = "Shield",
-                    status = if (state.blockedDomainCount > 0) {
-                        "${state.blockedDomainCount} domains"
-                    } else {
-                        "Not configured"
-                    },
-                    isActive = state.blockedDomainCount > 0,
+                    title = "VPN",
+                    status = if (state.isVpnBlockingEnabled) "Active" else "Inactive",
+                    isActive = state.isVpnBlockingEnabled,
                     onClick = { onNavigate(VaultDestination.SHIELD) },
                     modifier = Modifier.weight(1f),
                 )

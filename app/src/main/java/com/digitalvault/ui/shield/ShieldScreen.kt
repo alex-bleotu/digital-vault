@@ -1,5 +1,10 @@
 package com.digitalvault.ui.shield
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.net.VpnService
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -48,6 +55,25 @@ fun ShieldScreen(
 ) {
     val colors = VaultTheme.colors
     val state = viewModel.uiState
+    val context = LocalContext.current
+
+    val vpnPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        viewModel.onVpnPermissionResult(result.resultCode == Activity.RESULT_OK)
+    }
+
+    fun requestVpnBlocking() {
+        val prepareIntent = VpnService.prepare(context)
+        if (prepareIntent == null) {
+            viewModel.onVpnPermissionResult(true)
+        } else {
+            try {
+                vpnPermissionLauncher.launch(prepareIntent)
+            } catch (_: ActivityNotFoundException) {
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -71,6 +97,47 @@ fun ShieldScreen(
             style = MaterialTheme.typography.labelMedium,
             color = colors.textMuted,
         )
+
+        Spacer(Modifier.height(20.dp))
+        Surface(
+            shape = VaultTheme.shapes.medium,
+            color = colors.surface,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "System-wide DNS blocking",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Blocks these domains for every app and browser on the device, not just the ones Digital Vault watches.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted,
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Switch(
+                    checked = state.isVpnBlockingEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            requestVpnBlocking()
+                        } else {
+                            viewModel.disableVpnBlocking()
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.brass,
+                        checkedTrackColor = colors.surfaceRaised,
+                    ),
+                )
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
