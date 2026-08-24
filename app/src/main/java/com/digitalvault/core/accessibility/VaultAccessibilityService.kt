@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.digitalvault.R
+import com.digitalvault.core.accessibility.matcher.ChromeIncognitoMatcher
 import com.digitalvault.core.accessibility.matcher.InstagramReelsMatcher
 import com.digitalvault.core.accessibility.matcher.InstagramShareMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
@@ -61,7 +62,6 @@ private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
-private const val GRID_TILE_DESCRIPTION_VIEW_COUNT_MARKER = "View Count"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -117,6 +117,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var wasLastInstagramScreenLikedGridOrigin: Boolean = false
+
+    @Volatile
+    private var isInstagramOnGridStreak: Boolean = false
 
     @Volatile
     private var isInstagramBackReelExemptFromLikedGrid: Boolean = false
@@ -396,16 +399,17 @@ class VaultAccessibilityService : AccessibilityService() {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
             isInstagramBackReelExemptFromLikedGrid = false
-            wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid && !isSavedGrid)
-            wasLastInstagramScreenLikedGridOrigin = isLikedGrid || isSavedGrid
+            if (!isInstagramOnGridStreak || isLikedGrid || isSavedGrid) {
+                wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid && !isSavedGrid)
+                wasLastInstagramScreenLikedGridOrigin = isLikedGrid || isSavedGrid
+            }
+            isInstagramOnGridStreak = true
 
             return
         }
+        isInstagramOnGridStreak = false
         val identity = InstagramZoneGuard.findReelIdentity(root)
         if (identity == null) {
-            wasLastInstagramScreenNonExemptOrigin = false
-            wasLastInstagramScreenLikedGridOrigin = false
-
             return
         }
         val lockedIdentity = instagramBackReelLockedIdentity
@@ -433,7 +437,9 @@ class VaultAccessibilityService : AccessibilityService() {
         countDescendantsWithDescription(root, exact = GRID_TILE_DESCRIPTION_EXACT, marker = null) >= 2
 
     private fun isInstagramSavedGridScreen(root: AccessibilityNodeInfo): Boolean =
-        countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_VIEW_COUNT_MARKER) >= 2
+        countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_MARKER) >= 2 &&
+            root.hasVisibleNodeWithExactText("Saved") &&
+            root.hasVisibleNodeWithExactText("Add to collection")
 
     private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
         isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root) || isInstagramSavedGridScreen(root)
@@ -459,7 +465,7 @@ class VaultAccessibilityService : AccessibilityService() {
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
-        if (InstagramShareMatcher.isTargetSurface(root) || InstagramReelsMatcher.isTargetSurface(root)) {
+        if (InstagramReelsMatcher.isTargetSurface(root)) {
             isInstagramReelContext = true
 
             return
@@ -561,6 +567,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSurfaceMatcherActive(matcher: SurfaceMatcher, root: AccessibilityNodeInfo): Boolean {
         if (matcher.id in FAST_TRIGGER_SURFACE_IDS && !isInstagramReelContext) {
             return false
+        }
+        if (matcher.id == ChromeIncognitoMatcher.id && IncognitoNotificationListener.isChromeIncognitoActive) {
+            return true
         }
 
         return matcher.isTargetSurface(root)
