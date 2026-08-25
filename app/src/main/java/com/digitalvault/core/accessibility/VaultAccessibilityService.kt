@@ -138,6 +138,12 @@ class VaultAccessibilityService : AccessibilityService() {
     private var hasInstagramHomeScrollTriggeredOnce: Boolean = false
 
     @Volatile
+    private var instagramDmReelLockedIdentity: String? = null
+
+    @Volatile
+    private var isInstagramDmReelExempt: Boolean = false
+
+    @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
 
     private class SurfaceEntry {
@@ -231,6 +237,7 @@ class VaultAccessibilityService : AccessibilityService() {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                    matchedRoot(packageName)?.let { updateInstagramDmReelExemption(it) }
                     matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
                     matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
                 }
@@ -258,6 +265,7 @@ class VaultAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
+                    matchedRoot(packageName)?.let { updateInstagramDmReelExemption(it) }
                     matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
                     matchedRoot(packageName)?.let { updateInstagramHomeFeedContext(it) }
                     handleInstagramHomeFeedScroll(event)
@@ -479,8 +487,19 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
+    private fun updateInstagramDmReelExemption(root: AccessibilityNodeInfo) {
+        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
+        if (identity != instagramDmReelLockedIdentity) {
+            instagramDmReelLockedIdentity = identity
+            isInstagramDmReelExempt = false
+        }
         if (root.findVisibleNodesByText("Reply to").isNotEmpty()) {
+            isInstagramDmReelExempt = true
+        }
+    }
+
+    private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
+        if (isInstagramDmReelExempt || root.findVisibleNodesByText("Reply to").isNotEmpty()) {
             return false
         }
 
