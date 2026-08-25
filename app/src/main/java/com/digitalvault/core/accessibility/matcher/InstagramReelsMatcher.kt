@@ -31,9 +31,6 @@ object InstagramReelsMatcher : SurfaceMatcher {
         if (isLikesAndPlaysDropdown(root)) {
             return true
         }
-        if (isCommentsDrawer(root)) {
-            return true
-        }
 
         return isWatchingReel(root)
     }
@@ -42,7 +39,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
         root.hasVisibleNodeWithExactText(LIKES_AND_PLAYS_HEADER) ||
             root.hasVisibleNodeWithExactText(REACTIONS_AND_PLAYS_HEADER)
 
-    private fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
+    fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
         hasVisibleDescendantOfClass(root, COMMENT_INPUT_CLASS_NAME)
 
     private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {

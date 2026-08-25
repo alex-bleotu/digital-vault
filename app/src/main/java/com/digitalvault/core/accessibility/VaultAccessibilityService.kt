@@ -469,7 +469,7 @@ class VaultAccessibilityService : AccessibilityService() {
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
-        if (InstagramReelsMatcher.isTargetSurface(root)) {
+        if (isInstagramReelsMatcherActive(root)) {
             isInstagramReelContext = true
 
             return
@@ -477,6 +477,15 @@ class VaultAccessibilityService : AccessibilityService() {
         if (isKnownNonReelInstagramScreen(root)) {
             isInstagramReelContext = false
         }
+    }
+
+    private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
+        if (root.findVisibleNodesByText("Reply to").isNotEmpty()) {
+            return false
+        }
+
+        return InstagramReelsMatcher.isTargetSurface(root) ||
+            (isInstagramReelContext && InstagramReelsMatcher.isCommentsDrawer(root))
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
@@ -574,6 +583,9 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         if (matcher.id == ChromeIncognitoMatcher.id && IncognitoNotificationListener.isChromeIncognitoActive) {
             return true
+        }
+        if (matcher.id == InstagramReelsMatcher.id) {
+            return isInstagramReelsMatcherActive(root)
         }
 
         return matcher.isTargetSurface(root)
