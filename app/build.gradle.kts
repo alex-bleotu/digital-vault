@@ -36,8 +36,8 @@ android {
         applicationId = "com.alexbleotu.vault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 31
-        versionName = "1.31"
+        versionCode = 32
+        versionName = "1.32"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
