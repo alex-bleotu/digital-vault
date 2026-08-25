@@ -67,4 +67,10 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             vaultRepository.unlockSettingsFor(Duration.ofSeconds(seconds))
         }
     }
+
+    fun armGuard() {
+        viewModelScope.launch {
+            vaultRepository.clearSettingsUnlock()
+        }
+    }
 }

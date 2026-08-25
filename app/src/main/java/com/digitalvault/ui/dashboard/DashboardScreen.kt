@@ -41,9 +41,15 @@ import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitalvault.ui.navigation.VaultDestination
 import com.digitalvault.ui.theme.VaultTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
 private val LastCheckedFormatter = DateTimeFormatter.ofPattern("HH:mm · d MMM")
 
@@ -68,6 +74,15 @@ fun DashboardScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    var now by remember { mutableStateOf(Instant.now()) }
+
+    LaunchedEffect(state.standDownUntil) {
+        while (state.standDownUntil?.isAfter(Instant.now()) == true) {
+            delay(1000)
+            now = Instant.now()
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -89,6 +104,10 @@ fun DashboardScreen(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = when {
+                    state.isStoodDown && state.standDownUntil != null -> {
+                        val remainingSeconds = Duration.between(now, state.standDownUntil).seconds.coerceAtLeast(0)
+                        "GUARD IS DOWN · ${remainingSeconds}s LEFT"
+                    }
                     state.isStoodDown -> "GUARD IS DOWN"
                     state.activeCount == state.totalCount -> "ALL SYSTEMS ARMED"
                     else -> "${state.activeCount} OF ${state.totalCount} PROTECTIONS ACTIVE"

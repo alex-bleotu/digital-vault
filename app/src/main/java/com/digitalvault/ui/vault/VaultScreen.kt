@@ -206,7 +206,7 @@ fun VaultScreen(
             )
             Spacer(Modifier.height(12.dp))
             OutlinedButton(
-                onClick = { viewModel.standDown() },
+                onClick = { if (standDownActive) viewModel.armGuard() else viewModel.standDown() },
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.rust),
             ) {
                 Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
