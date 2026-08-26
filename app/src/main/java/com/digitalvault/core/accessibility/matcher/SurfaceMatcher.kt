@@ -13,6 +13,23 @@ interface SurfaceMatcher {
 fun AccessibilityNodeInfo.findVisibleNodesByText(text: String): List<AccessibilityNodeInfo> =
     findAccessibilityNodeInfosByText(text).filter { it.isVisibleToUser }
 
+fun AccessibilityNodeInfo.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Boolean {
+    if (isVisibleToUser) {
+        val text = text?.toString()
+        val hint = hintText?.toString()
+        if ((text != null && text.startsWith(prefix)) || (hint != null && hint.startsWith(prefix))) {
+            return true
+        }
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.hasVisibleNodeWithTextOrHintPrefix(prefix) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
 fun AccessibilityNodeInfo.hasVisibleNodeWithExactText(target: String): Boolean {
     if (isVisibleToUser && (text?.toString() == target || contentDescription?.toString() == target)) {
         return true

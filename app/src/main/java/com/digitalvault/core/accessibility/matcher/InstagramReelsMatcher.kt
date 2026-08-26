@@ -22,7 +22,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val REACTIONS_AND_PLAYS_HEADER = "Reactions and plays"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
-        if (root.findVisibleNodesByText(DIRECT_MESSAGE_REPLY_PREFIX).isNotEmpty()) {
+        if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX)) {
             return false
         }
         if (isTabBarShowing(root)) {

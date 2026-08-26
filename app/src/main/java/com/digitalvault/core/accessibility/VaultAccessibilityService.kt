@@ -29,6 +29,7 @@ import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
+import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithTextOrHintPrefix
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.RulesRepository
@@ -511,7 +512,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (identity == null) {
             return
         }
-        val replyBarVisible = root.findVisibleNodesByText("Reply to").isNotEmpty()
+        val replyBarVisible = root.hasVisibleNodeWithTextOrHintPrefix("Reply to")
         Log.d(IG_REEL_LOG_TAG, "replyBarVisible=$replyBarVisible")
         if (replyBarVisible) {
             if (!isInstagramDmReelExempt || identity != instagramDmReelLockedIdentity) {
@@ -531,7 +532,7 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
-        if (isInstagramDmReelExempt || root.findVisibleNodesByText("Reply to").isNotEmpty()) {
+        if (isInstagramDmReelExempt || root.hasVisibleNodeWithTextOrHintPrefix("Reply to")) {
             return false
         }
 
@@ -545,7 +546,7 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
-        isKnownNonDmReelInstagramScreen(root) || root.findVisibleNodesByText("Reply to").isNotEmpty()
+        isKnownNonDmReelInstagramScreen(root) || root.hasVisibleNodeWithTextOrHintPrefix("Reply to")
 
     private fun isKnownNonDmReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
         InstagramZoneGuard.isMainReelsTab(root) ||
