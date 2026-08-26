@@ -10,6 +10,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -63,6 +64,7 @@ private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
+private const val IG_REEL_LOG_TAG = "VaultIgReel"
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -478,31 +480,52 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
         if (isInstagramReelsMatcherActive(root)) {
+            if (!isInstagramReelContext) {
+                Log.d(IG_REEL_LOG_TAG, "reelContext -> true")
+            }
             isInstagramReelContext = true
 
             return
         }
         if (isKnownNonReelInstagramScreen(root)) {
+            if (isInstagramReelContext) {
+                Log.d(IG_REEL_LOG_TAG, "reelContext -> false (knownNonReelScreen)")
+            }
             isInstagramReelContext = false
         }
     }
 
     private fun updateInstagramDmReelExemption(root: AccessibilityNodeInfo) {
         if (isKnownNonDmReelInstagramScreen(root)) {
+            if (isInstagramDmReelExempt || instagramDmReelLockedIdentity != null) {
+                Log.d(IG_REEL_LOG_TAG, "dmExempt -> false, identity cleared (knownNonDmReelScreen)")
+            }
             instagramDmReelLockedIdentity = null
             isInstagramDmReelExempt = false
 
             return
         }
 
-        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
-        if (root.findVisibleNodesByText("Reply to").isNotEmpty()) {
+        val identity = InstagramZoneGuard.findReelIdentity(root)
+        Log.d(IG_REEL_LOG_TAG, "identity=$identity locked=$instagramDmReelLockedIdentity exempt=$isInstagramDmReelExempt")
+        if (identity == null) {
+            return
+        }
+        val replyBarVisible = root.findVisibleNodesByText("Reply to").isNotEmpty()
+        Log.d(IG_REEL_LOG_TAG, "replyBarVisible=$replyBarVisible")
+        if (replyBarVisible) {
+            if (!isInstagramDmReelExempt || identity != instagramDmReelLockedIdentity) {
+                Log.d(IG_REEL_LOG_TAG, "dmExempt -> true, identity locked to $identity (replyBarVisible)")
+            }
             instagramDmReelLockedIdentity = identity
             isInstagramDmReelExempt = true
 
             return
         }
         if (!isInstagramDmReelExempt) {
+            if (identity != instagramDmReelLockedIdentity) {
+                Log.d(IG_REEL_LOG_TAG, "identity lock updated (not exempt) $instagramDmReelLockedIdentity -> $identity")
+            }
             instagramDmReelLockedIdentity = identity
         }
     }
@@ -512,8 +535,13 @@ class VaultAccessibilityService : AccessibilityService() {
             return false
         }
 
-        return InstagramReelsMatcher.isTargetSurface(root) ||
+        val isActive = InstagramReelsMatcher.isTargetSurface(root) ||
             (isInstagramReelContext && InstagramReelsMatcher.isCommentsDrawer(root))
+        if (isActive) {
+            Log.d(IG_REEL_LOG_TAG, "reelsMatcherActive=true reelContext=$isInstagramReelContext dmExempt=$isInstagramDmReelExempt")
+        }
+
+        return isActive
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
@@ -677,6 +705,12 @@ class VaultAccessibilityService : AccessibilityService() {
             }
             val elapsed = SystemClock.elapsedRealtime() - entry.enteredTargetAtMillis
             if (elapsed >= settleMillis) {
+                if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    Log.d(
+                        IG_REEL_LOG_TAG,
+                        "blockSurface firing for instagram, matchedMatchers=${matchedMatchers.map { it.id }} elapsed=$elapsed settle=$settleMillis",
+                    )
+                }
                 blockSurface(packageName, rule)
             }
         } else if (entry.isInTarget) {
