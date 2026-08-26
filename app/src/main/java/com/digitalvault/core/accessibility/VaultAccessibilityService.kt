@@ -488,13 +488,22 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun updateInstagramDmReelExemption(root: AccessibilityNodeInfo) {
-        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
-        if (identity != instagramDmReelLockedIdentity) {
-            instagramDmReelLockedIdentity = identity
+        if (isKnownNonDmReelInstagramScreen(root)) {
+            instagramDmReelLockedIdentity = null
             isInstagramDmReelExempt = false
+
+            return
         }
+
+        val identity = InstagramZoneGuard.findReelIdentity(root) ?: return
         if (root.findVisibleNodesByText("Reply to").isNotEmpty()) {
+            instagramDmReelLockedIdentity = identity
             isInstagramDmReelExempt = true
+
+            return
+        }
+        if (!isInstagramDmReelExempt) {
+            instagramDmReelLockedIdentity = identity
         }
     }
 
@@ -508,11 +517,13 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
+        isKnownNonDmReelInstagramScreen(root) || root.findVisibleNodesByText("Reply to").isNotEmpty()
+
+    private fun isKnownNonDmReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
         InstagramZoneGuard.isMainReelsTab(root) ||
             InstagramZoneGuard.isHomeFeed(root) ||
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
             isInstagramGridScreen(root) ||
-            root.findVisibleNodesByText("Reply to").isNotEmpty() ||
             isInstagramMainTabBarShowing(root)
 
     private fun isInstagramMainTabBarShowing(root: AccessibilityNodeInfo): Boolean =
