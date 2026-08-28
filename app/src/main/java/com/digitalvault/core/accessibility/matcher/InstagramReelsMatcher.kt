@@ -11,6 +11,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val REELS_TAB_LABEL = "Reels"
     private const val FRIENDS_TAB_LABEL = "Friends"
     private const val DIRECT_MESSAGE_REPLY_PREFIX = "Reply to"
+    private const val DM_COMPOSER_VIEW_ID = "com.instagram.android:id/row_thread_composer_edittext"
     private const val REEL_DESCRIPTION_PREFIX = "Reel by "
     private val REEL_DESCRIPTION_SUFFIXES = listOf(
         ". Double tap to play or pause.",
@@ -22,7 +23,9 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val REACTIONS_AND_PLAYS_HEADER = "Reactions and plays"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
-        if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX)) {
+        if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX) ||
+            root.hasVisibleNodeWithViewId(DM_COMPOSER_VIEW_ID)
+        ) {
             return false
         }
         if (isTabBarShowing(root)) {

@@ -30,6 +30,19 @@ fun AccessibilityNodeInfo.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Bo
     return false
 }
 
+fun AccessibilityNodeInfo.hasVisibleNodeWithViewId(viewId: String): Boolean {
+    if (isVisibleToUser && viewIdResourceName == viewId) {
+        return true
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.hasVisibleNodeWithViewId(viewId) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
 fun AccessibilityNodeInfo.hasVisibleNodeWithExactText(target: String): Boolean {
     if (isVisibleToUser && (text?.toString() == target || contentDescription?.toString() == target)) {
         return true
