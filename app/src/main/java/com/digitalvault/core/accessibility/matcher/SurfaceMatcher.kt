@@ -91,6 +91,19 @@ fun AccessibilityNodeInfo.hasDescendantWithExactText(target: String): Boolean {
     return false
 }
 
+fun AccessibilityNodeInfo.anyVisibleDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
+    if (isVisibleToUser) {
+        text?.let { if (predicate(it)) return true }
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.anyVisibleDescendantTextMatches(predicate) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
 fun AccessibilityNodeInfo.anyVisibleDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
     if (isVisibleToUser) {
         contentDescription?.let { if (predicate(it)) return true }

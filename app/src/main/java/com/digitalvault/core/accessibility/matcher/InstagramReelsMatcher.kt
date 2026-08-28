@@ -54,8 +54,8 @@ object InstagramReelsMatcher : SurfaceMatcher {
 
     fun isReplyContextMenu(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(REPLY_MENU_ITEM_LABEL) &&
-            root.hasVisibleNodeWithExactText(VIEW_PROFILE_MENU_ITEM_LABEL) &&
-            root.hasVisibleNodeWithExactText(MUTE_MENU_ITEM_LABEL)
+            root.hasVisibleNodeWithExactText(MUTE_MENU_ITEM_LABEL) &&
+            root.anyVisibleDescendantTextMatches { it.toString().equals(VIEW_PROFILE_MENU_ITEM_LABEL, ignoreCase = true) }
 
     private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {
         if (node.isVisibleToUser && node.className?.toString() == className) {
