@@ -21,6 +21,10 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val COMMENT_INPUT_CLASS_NAME = "android.widget.AutoCompleteTextView"
     private const val LIKES_AND_PLAYS_HEADER = "Likes and plays"
     private const val REACTIONS_AND_PLAYS_HEADER = "Reactions and plays"
+    private const val NOTE_QUICK_REPLY_SUFFIX = "liked this reel"
+    private const val REPLY_MENU_ITEM_LABEL = "Reply"
+    private const val VIEW_PROFILE_MENU_ITEM_LABEL = "View Profile"
+    private const val MUTE_MENU_ITEM_LABEL = "Mute"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX) ||
@@ -44,6 +48,14 @@ object InstagramReelsMatcher : SurfaceMatcher {
 
     fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
         hasVisibleDescendantOfClass(root, COMMENT_INPUT_CLASS_NAME)
+
+    fun isNoteQuickReplyDrawer(root: AccessibilityNodeInfo): Boolean =
+        root.anyVisibleDescendantDescriptionMatches { it.toString().endsWith(NOTE_QUICK_REPLY_SUFFIX) }
+
+    fun isReplyContextMenu(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText(REPLY_MENU_ITEM_LABEL) &&
+            root.hasVisibleNodeWithExactText(VIEW_PROFILE_MENU_ITEM_LABEL) &&
+            root.hasVisibleNodeWithExactText(MUTE_MENU_ITEM_LABEL)
 
     private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {
         if (node.isVisibleToUser && node.className?.toString() == className) {

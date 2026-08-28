@@ -59,6 +59,7 @@ private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
+private const val SETTLE_RETRY_BUFFER_MILLIS = 50L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
 private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
 private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
@@ -155,6 +156,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private class SurfaceEntry {
         var isInTarget: Boolean = false
         var enteredTargetAtMillis: Long = 0L
+        var settleRetryJob: Job? = null
     }
 
     private val selfTriggeredHomeGuardRetryJobs = mutableMapOf<String, Job>()
@@ -530,7 +532,10 @@ class VaultAccessibilityService : AccessibilityService() {
         }
 
         return InstagramReelsMatcher.isTargetSurface(root) ||
-            (isInstagramReelContext && InstagramReelsMatcher.isCommentsDrawer(root))
+            (isInstagramReelContext &&
+                (InstagramReelsMatcher.isCommentsDrawer(root) ||
+                    InstagramReelsMatcher.isNoteQuickReplyDrawer(root) ||
+                    InstagramReelsMatcher.isReplyContextMenu(root)))
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
@@ -700,6 +705,12 @@ class VaultAccessibilityService : AccessibilityService() {
             val elapsed = SystemClock.elapsedRealtime() - entry.enteredTargetAtMillis
             if (elapsed >= settleMillis) {
                 blockSurface(packageName, rule)
+            } else {
+                entry.settleRetryJob?.cancel()
+                entry.settleRetryJob = serviceScope.launch {
+                    delay(settleMillis - elapsed + SETTLE_RETRY_BUFFER_MILLIS)
+                    evaluateSurface(packageName, rule)
+                }
             }
         } else if (entry.isInTarget) {
             resetSurface(packageName)
@@ -794,6 +805,8 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun resetSurface(packageName: String) {
         surfaceEntries[packageName]?.let { entry ->
             entry.isInTarget = false
+            entry.settleRetryJob?.cancel()
+            entry.settleRetryJob = null
         }
     }
 
