@@ -14,9 +14,12 @@ object InstagramZoneGuard {
     private const val REELS_TAB_LABEL = "Reels"
     private const val FRIENDS_TAB_LABEL = "Friends"
     private const val YOUR_STORY_LABEL = "Your story"
+    private const val BACK_BUTTON_LABEL = "Back"
 
     fun isMainReelsTab(root: AccessibilityNodeInfo): Boolean =
-        root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) && root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL)
+        root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) &&
+            root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL) &&
+            !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL)
 
     fun isHomeFeed(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(YOUR_STORY_LABEL)

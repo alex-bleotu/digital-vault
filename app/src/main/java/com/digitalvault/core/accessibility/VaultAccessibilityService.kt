@@ -123,13 +123,13 @@ class VaultAccessibilityService : AccessibilityService() {
     private var wasLastInstagramScreenNonExemptOrigin: Boolean = false
 
     @Volatile
-    private var wasLastInstagramScreenLikedGridOrigin: Boolean = false
+    private var wasLastInstagramScreenSingleReelOrigin: Boolean = false
 
     @Volatile
     private var isInstagramOnGridStreak: Boolean = false
 
     @Volatile
-    private var isInstagramBackReelExemptFromLikedGrid: Boolean = false
+    private var isInstagramBackReelExemptFromSingleReelOrigin: Boolean = false
 
     @Volatile
     private var isInstagramReelContext: Boolean = false
@@ -314,6 +314,9 @@ class VaultAccessibilityService : AccessibilityService() {
         if (isSuppressedInstagramBackReelZone(packageName)) {
             return
         }
+        if (isSuppressedInstagramDmReelZone(packageName)) {
+            return
+        }
         activeBlockedPackage = packageName
         goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
@@ -413,13 +416,14 @@ class VaultAccessibilityService : AccessibilityService() {
         val isExploreGrid = isInstagramExploreGridScreen(root)
         val isLikedGrid = isInstagramLikedGridScreen(root)
         val isSavedGrid = isInstagramSavedGridScreen(root)
-        if (InstagramZoneGuard.isMainReelsTab(root) || isExploreGrid || isLikedGrid || isSavedGrid) {
+        val isHomeFeed = InstagramZoneGuard.isHomeFeed(root) || isInstagramMainTabBarShowing(root)
+        if (InstagramZoneGuard.isMainReelsTab(root) || isExploreGrid || isLikedGrid || isSavedGrid || isHomeFeed) {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
-            isInstagramBackReelExemptFromLikedGrid = false
-            if (!isInstagramOnGridStreak || isLikedGrid || isSavedGrid) {
+            isInstagramBackReelExemptFromSingleReelOrigin = false
+            if (!isInstagramOnGridStreak || isLikedGrid || isSavedGrid || isHomeFeed) {
                 wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid && !isSavedGrid)
-                wasLastInstagramScreenLikedGridOrigin = isLikedGrid || isSavedGrid
+                wasLastInstagramScreenSingleReelOrigin = isLikedGrid || isSavedGrid || isHomeFeed
             }
             isInstagramOnGridStreak = true
 
@@ -434,14 +438,14 @@ class VaultAccessibilityService : AccessibilityService() {
         if (lockedIdentity == null) {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = !wasLastInstagramScreenNonExemptOrigin
-            isInstagramBackReelExemptFromLikedGrid = isInstagramBackReelExempt && wasLastInstagramScreenLikedGridOrigin
+            isInstagramBackReelExemptFromSingleReelOrigin = isInstagramBackReelExempt && wasLastInstagramScreenSingleReelOrigin
             wasLastInstagramScreenNonExemptOrigin = false
-            wasLastInstagramScreenLikedGridOrigin = false
+            wasLastInstagramScreenSingleReelOrigin = false
         } else if (lockedIdentity != identity) {
             instagramBackReelLockedIdentity = identity
-            if (isInstagramBackReelExemptFromLikedGrid) {
+            if (isInstagramBackReelExemptFromSingleReelOrigin) {
                 isInstagramBackReelExempt = false
-                isInstagramBackReelExemptFromLikedGrid = false
+                isInstagramBackReelExemptFromSingleReelOrigin = false
             } else if (root.hasVisibleNodeWithExactText("Suggested")) {
                 isInstagramBackReelExempt = false
             }
@@ -481,6 +485,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private fun isSuppressedInstagramBackReelZone(packageName: String): Boolean =
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramBackReelExempt
+
+    private fun isSuppressedInstagramDmReelZone(packageName: String): Boolean =
+        packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramDmReelExempt
 
     private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
         if (isInstagramReelsMatcherActive(root)) {
@@ -663,6 +670,11 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
+        if (isSuppressedInstagramDmReelZone(packageName)) {
+            resetSurface(packageName)
+
+            return
+        }
         val root = matchedRoot(packageName) ?: return
         val matchers = matchersFor(packageName, rule)
         if (matchers.isEmpty()) {
@@ -709,6 +721,9 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         if (isSuppressedInstagramBackReelZone(packageName)) {
+            return
+        }
+        if (isSuppressedInstagramDmReelZone(packageName)) {
             return
         }
         activeBlockedPackage = packageName
