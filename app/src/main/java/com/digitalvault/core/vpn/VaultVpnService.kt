@@ -2,6 +2,7 @@ package com.digitalvault.core.vpn
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.VpnService
@@ -34,6 +35,7 @@ private const val UDP_PROTOCOL = 17
 private const val DNS_PORT = 53
 private const val VPN_NOTIFICATION_ID = 2001
 private const val UPSTREAM_TIMEOUT_MILLIS = 4_000
+private const val ANDROID_AUTO_PACKAGE_NAME = "com.google.android.projection.gearhead"
 
 class VaultVpnService : VpnService() {
 
@@ -98,6 +100,11 @@ class VaultVpnService : VpnService() {
             .addAddress(TUN_ADDRESS, TUN_PREFIX_LENGTH)
             .setMtu(1500)
             .setBlocking(true)
+
+        try {
+            builder.addDisallowedApplication(ANDROID_AUTO_PACKAGE_NAME)
+        } catch (_: PackageManager.NameNotFoundException) {
+        }
 
         if (dnsServers.isEmpty()) {
             stopSelf()
