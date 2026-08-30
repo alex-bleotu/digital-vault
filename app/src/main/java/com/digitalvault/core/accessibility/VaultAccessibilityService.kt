@@ -521,6 +521,9 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
+        if (isInstagramDmReelExempt && identity != instagramDmReelLockedIdentity) {
+            isInstagramDmReelExempt = false
+        }
         if (!isInstagramDmReelExempt) {
             instagramDmReelLockedIdentity = identity
         }
