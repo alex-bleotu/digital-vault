@@ -15,14 +15,9 @@ object TikTokFeedMatcher : SurfaceMatcher {
         "Read or add comments.",
         "Share video.",
     )
-    private const val BACK_LABEL = "Back"
-
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (isTabBarShowing(root)) {
             return true
-        }
-        if (root.hasDescendantWithExactText(BACK_LABEL)) {
-            return false
         }
 
         return isWatchingFeedVideo(root)
@@ -32,7 +27,7 @@ object TikTokFeedMatcher : SurfaceMatcher {
         discoveryTabLabels.any { root.findVisibleNodesByText(it).isNotEmpty() } &&
             requiredTabLabels.all { root.findVisibleNodesByText(it).isNotEmpty() }
 
-    private fun isWatchingFeedVideo(root: AccessibilityNodeInfo): Boolean =
+    fun isWatchingFeedVideo(root: AccessibilityNodeInfo): Boolean =
         videoActionDescriptionPrefixes.all { prefix ->
             root.anyVisibleDescendantDescriptionMatches { it.startsWith(prefix) }
         }

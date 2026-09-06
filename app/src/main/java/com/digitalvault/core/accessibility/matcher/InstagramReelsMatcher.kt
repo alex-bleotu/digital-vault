@@ -25,6 +25,8 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val REPLY_MENU_ITEM_LABEL = "Reply"
     private const val VIEW_PROFILE_MENU_ITEM_LABEL = "View Profile"
     private const val MUTE_MENU_ITEM_LABEL = "Mute"
+    private const val MEDIA_VIEWER_PHOTO_DESCRIPTION = "Photo"
+    private const val MEDIA_VIEWER_VIDEO_DESCRIPTION = "Video"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX) ||
@@ -51,6 +53,10 @@ object InstagramReelsMatcher : SurfaceMatcher {
 
     fun isNoteQuickReplyDrawer(root: AccessibilityNodeInfo): Boolean =
         root.anyVisibleDescendantDescriptionMatches { it.toString().endsWith(NOTE_QUICK_REPLY_SUFFIX) }
+
+    fun isDmMediaViewer(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText(MEDIA_VIEWER_PHOTO_DESCRIPTION) ||
+            root.hasVisibleNodeWithExactText(MEDIA_VIEWER_VIDEO_DESCRIPTION)
 
     fun isReplyContextMenu(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText(REPLY_MENU_ITEM_LABEL) &&

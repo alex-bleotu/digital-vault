@@ -73,6 +73,9 @@ class VaultVpnService : VpnService() {
 
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_RESTART) {
+            stopVpn()
+        }
         startForeground(VPN_NOTIFICATION_ID, buildNotification())
         startVpn()
 
@@ -343,6 +346,7 @@ class VaultVpnService : VpnService() {
         val isRunning = MutableStateFlow(false)
 
         private const val ACTION_STOP = "com.digitalvault.vpn.STOP"
+        private const val ACTION_RESTART = "com.digitalvault.vpn.RESTART"
 
         fun prepareIntent(context: Context): Intent? = prepare(context)
 
@@ -352,6 +356,10 @@ class VaultVpnService : VpnService() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, VaultVpnService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun restart(context: Context) {
+            context.startForegroundService(Intent(context, VaultVpnService::class.java).setAction(ACTION_RESTART))
         }
     }
 }

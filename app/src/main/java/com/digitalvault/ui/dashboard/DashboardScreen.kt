@@ -18,9 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -75,6 +79,7 @@ fun DashboardScreen(
     }
 
     var now by remember { mutableStateOf(Instant.now()) }
+    var showRestartVpnDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.standDownUntil) {
         while (state.standDownUntil?.isAfter(Instant.now()) == true) {
@@ -174,7 +179,13 @@ fun DashboardScreen(
                     title = "VPN",
                     status = if (state.isVpnBlockingEnabled) "Active" else "Inactive",
                     isActive = state.isVpnBlockingEnabled,
-                    onClick = { onNavigate(VaultDestination.SHIELD) },
+                    onClick = {
+                        if (state.isVpnBlockingEnabled) {
+                            showRestartVpnDialog = true
+                        } else {
+                            onNavigate(VaultDestination.SHIELD)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 ModuleCard(
@@ -197,6 +208,39 @@ fun DashboardScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textMuted,
                 textAlign = TextAlign.Center,
+            )
+        }
+
+        if (showRestartVpnDialog) {
+            AlertDialog(
+                onDismissRequest = { showRestartVpnDialog = false },
+                containerColor = colors.surface,
+                title = {
+                    Text(text = "Restart VPN?", color = colors.textPrimary)
+                },
+                text = {
+                    Text(
+                        text = "This briefly drops domain blocking while the VPN reconnects.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                    )
+                },
+                confirmButton = {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.restartVpn()
+                            showRestartVpnDialog = false
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
+                    ) {
+                        Text(text = "Restart")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRestartVpnDialog = false }) {
+                        Text(text = "Cancel", color = colors.textMuted)
+                    }
+                },
             )
         }
     }

@@ -23,6 +23,7 @@ import com.digitalvault.core.accessibility.matcher.InstagramReelsMatcher
 import com.digitalvault.core.accessibility.matcher.InstagramShareMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatcher
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
+import com.digitalvault.core.accessibility.matcher.TikTokFeedMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
@@ -406,6 +407,11 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
+        if (TikTokFeedMatcher.isWatchingFeedVideo(root)) {
+            isTikTokBackNavigated = false
+
+            return
+        }
         if (root.hasDescendantWithExactText("Back")) {
             isTikTokBackNavigated = true
         }
@@ -530,7 +536,10 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
-        if (isInstagramDmReelExempt || isInstagramDmReplyBarVisible(root)) {
+        if (isInstagramDmReelExempt ||
+            isInstagramDmReplyBarVisible(root) ||
+            InstagramReelsMatcher.isDmMediaViewer(root)
+        ) {
             return false
         }
 
@@ -542,7 +551,9 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
-        isKnownNonDmReelInstagramScreen(root) || isInstagramDmReplyBarVisible(root)
+        isKnownNonDmReelInstagramScreen(root) ||
+            isInstagramDmReplyBarVisible(root) ||
+            InstagramReelsMatcher.isDmMediaViewer(root)
 
     private fun isKnownNonDmReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
         InstagramZoneGuard.isMainReelsTab(root) ||

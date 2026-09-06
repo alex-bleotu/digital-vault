@@ -13,6 +13,7 @@ import com.digitalvault.core.data.VaultRepository
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.core.data.vaultDataStore
 import com.digitalvault.core.permissions.SetupPermissions
+import com.digitalvault.core.vpn.VaultVpnService
 import java.time.Instant
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -79,6 +80,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 refreshLiveChecks()
             }
         }
+    }
+
+    fun restartVpn() {
+        if (!uiState.isVpnBlockingEnabled) {
+            return
+        }
+        VaultVpnService.restart(getApplication())
     }
 
     fun refreshLiveChecks() {
