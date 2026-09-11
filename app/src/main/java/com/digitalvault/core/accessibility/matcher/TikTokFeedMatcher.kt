@@ -11,9 +11,9 @@ object TikTokFeedMatcher : SurfaceMatcher {
     private val discoveryTabLabels = listOf("Explore", "Community")
     private val requiredTabLabels = listOf("Following", "For You")
     private val videoActionDescriptionPrefixes = listOf(
-        "Like video.",
-        "Read or add comments.",
-        "Share video.",
+        "Like video",
+        "Read or add comments",
+        "Share video",
     )
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (isTabBarShowing(root)) {
