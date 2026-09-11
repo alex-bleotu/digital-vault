@@ -26,6 +26,7 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.TikTokFeedMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
+import com.digitalvault.core.accessibility.matcher.anyVisibleDescendantDescriptionMatches
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
@@ -60,6 +61,8 @@ private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
+private const val HOME_TAB_TAP_GUARD_MILLIS = 1_500L
+private const val HOME_TAB_LABEL = "Home"
 private const val SETTLE_RETRY_BUFFER_MILLIS = 50L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
 private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
@@ -140,10 +143,19 @@ class VaultAccessibilityService : AccessibilityService() {
     private var isInstagramHomeFeed: Boolean = true
 
     @Volatile
-    private var instagramHomeScrollAccumulatedPx: Int = 0
+    private var isInstagramStoryViewersSheetOpen: Boolean = false
 
     @Volatile
-    private var hasInstagramHomeScrollTriggeredOnce: Boolean = false
+    private var instagramHomeScrollPositionPx: Int = 0
+
+    @Volatile
+    private var isInstagramHomeScrollAboveThreshold: Boolean = false
+
+    @Volatile
+    private var instagramHomeScrollLastTriggerPositionPx: Int = 0
+
+    @Volatile
+    private var instagramHomeTabTappedAtMillis: Long = 0L
 
     @Volatile
     private var instagramDmReelLockedIdentity: String? = null
@@ -281,6 +293,12 @@ class VaultAccessibilityService : AccessibilityService() {
                 }
                 val rule = surfaceRules[packageName] ?: return
                 evaluateSurface(packageName, rule)
+            }
+
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    handleInstagramHomeTabTap(event)
+                }
             }
         }
     }
@@ -565,12 +583,23 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isInstagramMainTabBarShowing(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithExactText("Home") && root.hasVisibleNodeWithExactText("Profile")
 
+    private fun isInstagramStoryViewersSheet(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText("Who viewed your story") ||
+            root.hasVisibleNodeWithExactText("Story replies") ||
+            root.anyVisibleDescendantDescriptionMatches { it.toString().endsWith("liked your story") }
+
     private fun updateInstagramHomeFeedContext(root: AccessibilityNodeInfo) {
         if (InstagramShareMatcher.isTargetSurface(root)) {
             return
         }
+        if (isInstagramStoryViewersSheet(root)) {
+            isInstagramStoryViewersSheetOpen = true
+
+            return
+        }
         if (InstagramZoneGuard.isHomeFeed(root)) {
             isInstagramHomeFeed = true
+            isInstagramStoryViewersSheetOpen = false
 
             return
         }
@@ -580,33 +609,59 @@ class VaultAccessibilityService : AccessibilityService() {
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
             isInstagramGridScreen(root) ||
             isImmersiveReelViewer
-        if (isKnownOtherScreen && isInstagramHomeFeed) {
-            isInstagramHomeFeed = false
-            instagramHomeScrollAccumulatedPx = 0
+        if (hasMainTabBar) {
+            isInstagramStoryViewersSheetOpen = false
+        }
+        if (isKnownOtherScreen) {
+            isInstagramStoryViewersSheetOpen = false
+            if (isInstagramHomeFeed) {
+                isInstagramHomeFeed = false
+                instagramHomeScrollPositionPx = 0
+                isInstagramHomeScrollAboveThreshold = false
+                instagramHomeScrollLastTriggerPositionPx = 0
+            }
         }
     }
 
     private fun handleInstagramHomeFeedScroll(event: AccessibilityEvent) {
-        if (!isInstagramHomeFeed || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+        if (!isInstagramHomeFeed || isInstagramStoryViewersSheetOpen || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             return
         }
-        val deltaY = event.scrollDeltaY
-        if (deltaY <= 0) {
+        if (isWithinInstagramHomeTabTapGuard()) {
             return
         }
-        instagramHomeScrollAccumulatedPx += deltaY
-        val triggerFraction = if (hasInstagramHomeScrollTriggeredOnce) {
-            HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION
-        } else {
-            HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION
-        }
-        val triggerThresholdPx = (resources.displayMetrics.heightPixels * triggerFraction).toInt()
-        if (instagramHomeScrollAccumulatedPx < triggerThresholdPx) {
+        instagramHomeScrollPositionPx = (instagramHomeScrollPositionPx + event.scrollDeltaY).coerceAtLeast(0)
+
+        val bigThresholdPx = (resources.displayMetrics.heightPixels * HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION).toInt()
+        if (instagramHomeScrollPositionPx < bigThresholdPx) {
+            isInstagramHomeScrollAboveThreshold = false
+
             return
         }
-        instagramHomeScrollAccumulatedPx = 0
-        hasInstagramHomeScrollTriggeredOnce = true
+
+        val repeatStepPx = (resources.displayMetrics.heightPixels * HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION).toInt()
+        val shouldTrigger = !isInstagramHomeScrollAboveThreshold ||
+            kotlin.math.abs(instagramHomeScrollPositionPx - instagramHomeScrollLastTriggerPositionPx) >= repeatStepPx
+        if (!shouldTrigger) {
+            return
+        }
+
+        isInstagramHomeScrollAboveThreshold = true
+        instagramHomeScrollLastTriggerPositionPx = instagramHomeScrollPositionPx
         triggerInstagramHomeFeedScrollBlock()
+    }
+
+    private fun isWithinInstagramHomeTabTapGuard(): Boolean =
+        SystemClock.elapsedRealtime() - instagramHomeTabTappedAtMillis < HOME_TAB_TAP_GUARD_MILLIS
+
+    private fun handleInstagramHomeTabTap(event: AccessibilityEvent) {
+        if (event.contentDescription?.toString() != HOME_TAB_LABEL) {
+            return
+        }
+        instagramHomeTabTappedAtMillis = SystemClock.elapsedRealtime()
+        instagramHomeScrollPositionPx = 0
+        isInstagramHomeScrollAboveThreshold = false
+        instagramHomeScrollLastTriggerPositionPx = 0
     }
 
     private fun triggerInstagramHomeFeedScrollBlock() {
