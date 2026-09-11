@@ -18,6 +18,7 @@ object UpdateInstaller {
     suspend fun downloadApk(context: Context, apkDownloadUrl: String): File? = withContext(Dispatchers.IO) {
         runCatching {
             val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
+            updatesDir.listFiles()?.forEach { it.delete() }
             val outFile = File(updatesDir, "digital-vault-update.apk")
 
             val connection = URL(apkDownloadUrl).openConnection() as HttpURLConnection

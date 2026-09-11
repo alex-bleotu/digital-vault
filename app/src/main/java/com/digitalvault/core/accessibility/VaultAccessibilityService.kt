@@ -122,6 +122,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private var instagramBackReelLockedIdentity: String? = null
 
     @Volatile
+    private var instagramBackReelSingleOriginIdentity: String? = null
+
+    @Volatile
     private var isInstagramBackReelExempt: Boolean = false
 
     @Volatile
@@ -447,6 +450,7 @@ class VaultAccessibilityService : AccessibilityService() {
             instagramBackReelLockedIdentity = null
             isInstagramBackReelExempt = false
             isInstagramBackReelExemptFromSingleReelOrigin = false
+            instagramBackReelSingleOriginIdentity = null
             if (!isInstagramOnGridStreak || isLikedGrid || isSavedGrid || isHomeFeed) {
                 wasLastInstagramScreenNonExemptOrigin = InstagramZoneGuard.isMainReelsTab(root) || (isExploreGrid && !isLikedGrid && !isSavedGrid)
                 wasLastInstagramScreenSingleReelOrigin = isLikedGrid || isSavedGrid || isHomeFeed
@@ -465,11 +469,15 @@ class VaultAccessibilityService : AccessibilityService() {
             instagramBackReelLockedIdentity = identity
             isInstagramBackReelExempt = !wasLastInstagramScreenNonExemptOrigin
             isInstagramBackReelExemptFromSingleReelOrigin = isInstagramBackReelExempt && wasLastInstagramScreenSingleReelOrigin
+            instagramBackReelSingleOriginIdentity = if (isInstagramBackReelExemptFromSingleReelOrigin) identity else null
             wasLastInstagramScreenNonExemptOrigin = false
             wasLastInstagramScreenSingleReelOrigin = false
         } else if (lockedIdentity != identity) {
             instagramBackReelLockedIdentity = identity
-            if (isInstagramBackReelExemptFromSingleReelOrigin) {
+            if (identity == instagramBackReelSingleOriginIdentity) {
+                isInstagramBackReelExempt = true
+                isInstagramBackReelExemptFromSingleReelOrigin = true
+            } else if (isInstagramBackReelExemptFromSingleReelOrigin) {
                 isInstagramBackReelExempt = false
                 isInstagramBackReelExemptFromSingleReelOrigin = false
             } else if (root.hasVisibleNodeWithExactText("Suggested")) {
