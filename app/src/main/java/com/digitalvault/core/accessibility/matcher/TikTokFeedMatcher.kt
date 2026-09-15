@@ -15,13 +15,21 @@ object TikTokFeedMatcher : SurfaceMatcher {
         "Read or add comments",
         "Share video",
     )
+    private const val DM_COMPOSER_TEXT_PREFIX = "Message "
+
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+        if (isDmComposerVisible(root)) {
+            return false
+        }
         if (isTabBarShowing(root)) {
             return true
         }
 
         return isWatchingFeedVideo(root)
     }
+
+    private fun isDmComposerVisible(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithTextOrHintPrefix(DM_COMPOSER_TEXT_PREFIX)
 
     private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =
         discoveryTabLabels.any { root.findVisibleNodesByText(it).isNotEmpty() } &&
