@@ -28,7 +28,7 @@ object TikTokFeedMatcher : SurfaceMatcher {
         return isWatchingFeedVideo(root)
     }
 
-    private fun isDmComposerVisible(root: AccessibilityNodeInfo): Boolean =
+    fun isDmComposerVisible(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithTextOrHintPrefix(DM_COMPOSER_TEXT_PREFIX)
 
     private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =

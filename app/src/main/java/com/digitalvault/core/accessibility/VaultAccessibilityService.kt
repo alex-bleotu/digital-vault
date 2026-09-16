@@ -119,6 +119,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private var isTikTokBackNavigated: Boolean = false
 
     @Volatile
+    private var isTikTokDmVideoOpen: Boolean = false
+
+    @Volatile
     private var instagramBackReelLockedIdentity: String? = null
 
     @Volatile
@@ -425,7 +428,16 @@ class VaultAccessibilityService : AccessibilityService() {
             root.findVisibleNodesByText("Following").isNotEmpty()
         if (isOnMainTabBar) {
             isTikTokBackNavigated = false
+            isTikTokDmVideoOpen = false
 
+            return
+        }
+        if (TikTokFeedMatcher.isDmComposerVisible(root)) {
+            isTikTokDmVideoOpen = true
+
+            return
+        }
+        if (isTikTokDmVideoOpen) {
             return
         }
         if (TikTokFeedMatcher.isWatchingFeedVideo(root)) {
@@ -439,7 +451,7 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun isSuppressedTikTokZone(packageName: String): Boolean =
-        packageName == TIKTOK_PACKAGE_NAME && isTikTokBackNavigated
+        packageName == TIKTOK_PACKAGE_NAME && (isTikTokBackNavigated || isTikTokDmVideoOpen)
 
     private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
         val isExploreGrid = isInstagramExploreGridScreen(root)
