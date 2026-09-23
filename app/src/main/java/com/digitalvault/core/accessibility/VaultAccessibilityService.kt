@@ -65,7 +65,7 @@ private const val HOME_TAB_TAP_GUARD_MILLIS = 1_500L
 private const val HOME_TAB_LABEL = "Home"
 private const val SETTLE_RETRY_BUFFER_MILLIS = 50L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
-private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 1.5
+private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 2.0
 private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
@@ -73,7 +73,10 @@ private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
 private const val IG_DM_COMPOSER_VIEW_ID = "com.instagram.android:id/row_thread_composer_edittext"
 
 private fun isInstagramDmReplyBarVisible(root: AccessibilityNodeInfo): Boolean =
-    root.hasVisibleNodeWithTextOrHintPrefix("Reply to") || root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID)
+    root.hasVisibleNodeWithTextOrHintPrefix("Reply to") ||
+        root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
+        root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
+        root.hasVisibleNodeWithTextOrHintPrefix("Message")
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -628,7 +631,8 @@ class VaultAccessibilityService : AccessibilityService() {
         val isKnownOtherScreen = InstagramZoneGuard.isMainReelsTab(root) ||
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
             isInstagramGridScreen(root) ||
-            isImmersiveReelViewer
+            isImmersiveReelViewer ||
+            isInstagramDmReplyBarVisible(root)
         if (hasMainTabBar) {
             isInstagramStoryViewersSheetOpen = false
         }
