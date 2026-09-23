@@ -12,4 +12,5 @@ data class AppRule(
     val graceSeconds: Int = 5,
     val targetSurfaces: List<String> = emptyList(),
     val allowBreak: Boolean = true,
+    val instagramHomeScrollThresholdScreens: Float = 0.5f,
 )

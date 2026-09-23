@@ -48,6 +48,7 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
             rule.graceSeconds.toString(),
             rule.targetSurfaces.joinToString(","),
             rule.allowBreak.toString(),
+            rule.instagramHomeScrollThresholdScreens.toString(),
         ).joinToString("|")
 
     private fun decode(raw: String): AppRule? {
@@ -59,6 +60,7 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
         val graceSeconds = parts[2].toIntOrNull() ?: 5
         val targetSurfaces = if (parts[3].isEmpty()) emptyList() else parts[3].split(",")
         val allowBreak = parts.getOrNull(4)?.toBooleanStrictOrNull() ?: true
+        val instagramHomeScrollThresholdScreens = parts.getOrNull(5)?.toFloatOrNull() ?: 0.5f
 
         return AppRule(
             packageName = parts[0],
@@ -66,6 +68,7 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
             graceSeconds = graceSeconds,
             targetSurfaces = targetSurfaces,
             allowBreak = allowBreak,
+            instagramHomeScrollThresholdScreens = instagramHomeScrollThresholdScreens,
         )
     }
 }

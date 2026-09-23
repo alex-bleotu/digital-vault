@@ -71,6 +71,11 @@ import kotlin.math.roundToInt
 
 private val YOUTUBE_SHORTS_PACKAGES = setOf("com.google.android.youtube", "app.rvx.android.youtube")
 private val GRACE_SECONDS_STOPS = listOf(0, 1, 5, 10, 15, 20, 30)
+private val HOME_SCROLL_THRESHOLD_STOPS = listOf(0.1f, 0.25f, 0.5f, 1f, 2.5f, 5f)
+private const val INSTAGRAM_PACKAGE_NAME = "com.instagram.android"
+
+private fun formatHomeScrollThreshold(value: Float): String =
+    if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -272,6 +277,7 @@ fun RulesScreen(
             RuleEditor(
                 rule = ruleBeingEdited,
                 label = labelByPackage[ruleBeingEdited.packageName] ?: ruleBeingEdited.packageName,
+                icon = appByPackage[ruleBeingEdited.packageName]?.icon,
                 onSave = { updated ->
                     viewModel.updateRule(updated)
                     editingRule = null
@@ -355,6 +361,7 @@ private fun RuleRow(
 private fun RuleEditor(
     rule: AppRule,
     label: String,
+    icon: ImageBitmap?,
     onSave: (AppRule) -> Unit,
 ) {
     val colors = VaultTheme.colors
@@ -362,6 +369,7 @@ private fun RuleEditor(
     val isChromeIncognitoRule = rule.packageName == "com.android.chrome"
     val isYouTubeShortsRule = rule.packageName in YOUTUBE_SHORTS_PACKAGES
     val isInstantBlockRule = isChromeIncognitoRule
+    val isInstagramRule = rule.packageName == INSTAGRAM_PACKAGE_NAME
     var mode by remember { mutableStateOf(rule.mode) }
     var graceStepIndex by remember {
         mutableStateOf(
@@ -369,6 +377,14 @@ private fun RuleEditor(
         )
     }
     val graceSeconds = GRACE_SECONDS_STOPS[graceStepIndex.roundToInt()]
+    var homeScrollThresholdStepIndex by remember {
+        mutableStateOf(
+            HOME_SCROLL_THRESHOLD_STOPS.indices.minBy { index ->
+                abs(HOME_SCROLL_THRESHOLD_STOPS[index] - rule.instagramHomeScrollThresholdScreens)
+            }.toFloat(),
+        )
+    }
+    val homeScrollThreshold = HOME_SCROLL_THRESHOLD_STOPS[homeScrollThresholdStepIndex.roundToInt()]
     var allowBreak by remember { mutableStateOf(rule.allowBreak) }
 
     Column(
@@ -377,17 +393,23 @@ private fun RuleEditor(
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp),
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.headlineSmall,
-            color = colors.textPrimary,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = rule.packageName,
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textMuted,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AppIcon(icon = icon, label = label, size = 40.dp)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = rule.packageName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textMuted,
+                )
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
         Text(
@@ -429,7 +451,7 @@ private fun RuleEditor(
         }
 
         if (mode == BlockMode.SURFACE_BLOCK && !isInstantBlockRule) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = "GRACE PERIOD · ${graceSeconds}S",
                 style = MaterialTheme.typography.labelMedium,
@@ -458,11 +480,41 @@ private fun RuleEditor(
             )
         }
 
+        if (mode == BlockMode.SURFACE_BLOCK && isInstagramRule) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "HOME SCROLL BLOCK · ${formatHomeScrollThreshold(homeScrollThreshold)}X",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
+            val homeScrollSliderInteractionSource = remember { MutableInteractionSource() }
+            Slider(
+                value = homeScrollThresholdStepIndex,
+                onValueChange = { homeScrollThresholdStepIndex = it },
+                valueRange = 0f..(HOME_SCROLL_THRESHOLD_STOPS.size - 1).toFloat(),
+                steps = HOME_SCROLL_THRESHOLD_STOPS.size - 2,
+                modifier = Modifier.padding(horizontal = 6.dp),
+                interactionSource = homeScrollSliderInteractionSource,
+                thumb = {
+                    SliderDefaults.Thumb(
+                        interactionSource = homeScrollSliderInteractionSource,
+                        thumbSize = DpSize(4.dp, 20.dp),
+                        colors = SliderDefaults.colors(thumbColor = colors.brass),
+                    )
+                },
+                colors = SliderDefaults.colors(
+                    thumbColor = colors.brass,
+                    activeTrackColor = colors.brass,
+                    inactiveTrackColor = colors.surfaceRaised,
+                ),
+            )
+        }
+
         val isInstantModeSelected = isInstantBlockRule && mode == BlockMode.SURFACE_BLOCK
         val isNoBreakModeSelected = isChromeIncognitoRule && mode == BlockMode.SURFACE_BLOCK
 
         if (!isNoBreakModeSelected) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

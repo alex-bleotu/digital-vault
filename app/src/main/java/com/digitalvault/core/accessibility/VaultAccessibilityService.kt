@@ -65,7 +65,7 @@ private const val HOME_TAB_TAP_GUARD_MILLIS = 1_500L
 private const val HOME_TAB_LABEL = "Home"
 private const val SETTLE_RETRY_BUFFER_MILLIS = 50L
 private val FAST_TRIGGER_SURFACE_IDS = setOf("instagram_share")
-private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 2.0
+private const val HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.5f
 private const val HOME_SCROLL_REPEAT_TRIGGER_SCREEN_HEIGHT_FRACTION = 0.1
 private const val TIKTOK_PACKAGE_NAME = "com.zhiliaoapp.musically"
 private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
@@ -623,6 +623,9 @@ class VaultAccessibilityService : AccessibilityService() {
         if (InstagramZoneGuard.isHomeFeed(root)) {
             isInstagramHomeFeed = true
             isInstagramStoryViewersSheetOpen = false
+            instagramHomeScrollPositionPx = 0
+            isInstagramHomeScrollAboveThreshold = false
+            instagramHomeScrollLastTriggerPositionPx = 0
 
             return
         }
@@ -656,7 +659,9 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         instagramHomeScrollPositionPx = (instagramHomeScrollPositionPx + event.scrollDeltaY).coerceAtLeast(0)
 
-        val bigThresholdPx = (resources.displayMetrics.heightPixels * HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION).toInt()
+        val thresholdFraction = surfaceRules[InstagramZoneGuard.PACKAGE_NAME]?.instagramHomeScrollThresholdScreens
+            ?: HOME_SCROLL_TRIGGER_SCREEN_HEIGHT_FRACTION
+        val bigThresholdPx = (resources.displayMetrics.heightPixels * thresholdFraction).toInt()
         if (instagramHomeScrollPositionPx < bigThresholdPx) {
             isInstagramHomeScrollAboveThreshold = false
 

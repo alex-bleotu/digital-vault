@@ -22,7 +22,7 @@ object InstagramZoneGuard {
             !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL)
 
     fun isHomeFeed(root: AccessibilityNodeInfo): Boolean =
-        root.hasVisibleNodeWithExactText(YOUR_STORY_LABEL)
+        root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL }
 
     fun isSettingsOrOwnProfile(root: AccessibilityNodeInfo): Boolean =
         root.findVisibleNodesByText(SETTINGS_MENU_LABEL).isNotEmpty() ||
