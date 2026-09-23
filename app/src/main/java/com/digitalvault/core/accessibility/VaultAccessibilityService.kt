@@ -588,7 +588,8 @@ class VaultAccessibilityService : AccessibilityService() {
             (isInstagramReelContext &&
                 (InstagramReelsMatcher.isCommentsDrawer(root) ||
                     InstagramReelsMatcher.isNoteQuickReplyDrawer(root) ||
-                    InstagramReelsMatcher.isReplyContextMenu(root)))
+                    InstagramReelsMatcher.isReplyContextMenu(root) ||
+                    InstagramReelsMatcher.isPlaybackControlsDrawer(root)))
     }
 
     private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =

@@ -27,6 +27,8 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val MUTE_MENU_ITEM_LABEL = "Mute"
     private const val MEDIA_VIEWER_PHOTO_DESCRIPTION = "Photo"
     private const val MEDIA_VIEWER_VIDEO_DESCRIPTION = "Video"
+    private const val PLAYBACK_CONTROLS_SPEED_LABEL = "Speed"
+    private const val PLAYBACK_CONTROLS_AUTO_SCROLL_LABEL = "Auto-scroll"
 
     override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
         if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX) ||
@@ -62,6 +64,10 @@ object InstagramReelsMatcher : SurfaceMatcher {
         root.hasVisibleNodeWithExactText(REPLY_MENU_ITEM_LABEL) &&
             root.hasVisibleNodeWithExactText(MUTE_MENU_ITEM_LABEL) &&
             root.anyVisibleDescendantTextMatches { it.toString().equals(VIEW_PROFILE_MENU_ITEM_LABEL, ignoreCase = true) }
+
+    fun isPlaybackControlsDrawer(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText(PLAYBACK_CONTROLS_SPEED_LABEL) &&
+            root.hasVisibleNodeWithExactText(PLAYBACK_CONTROLS_AUTO_SCROLL_LABEL)
 
     private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {
         if (node.isVisibleToUser && node.className?.toString() == className) {
