@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokShareMatcher : SurfaceMatcher {
 
@@ -10,6 +10,6 @@ object TikTokShareMatcher : SurfaceMatcher {
 
     private val requiredLabels = listOf("Repost", "Send to")
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
+    override fun isTargetSurface(root: ScreenNode): Boolean =
         requiredLabels.all { root.hasVisibleNodeWithExactText(it) }
 }

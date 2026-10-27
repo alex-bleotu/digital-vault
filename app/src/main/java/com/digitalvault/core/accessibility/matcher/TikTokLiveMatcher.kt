@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokLiveMatcher : SurfaceMatcher {
 
@@ -11,7 +11,7 @@ object TikTokLiveMatcher : SurfaceMatcher {
     private const val DISCOVER_LIVE_LABEL = "Discover LIVE"
     private const val GIFTER_SEAT_SUBSTRING = "gifter seat"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
+    override fun isTargetSurface(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(DISCOVER_LIVE_LABEL) ||
             root.anyDescendantDescriptionMatches { it.contains(GIFTER_SEAT_SUBSTRING, ignoreCase = true) }
 }

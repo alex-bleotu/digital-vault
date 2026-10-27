@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokCommentsMatcher : SurfaceMatcher {
 
@@ -11,7 +11,7 @@ object TikTokCommentsMatcher : SurfaceMatcher {
     private const val ADD_COMMENT_PREFIX = "Add comment"
     private const val BACK_LABEL = "Back"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.hasDescendantWithExactText(BACK_LABEL)) {
             return false
         }

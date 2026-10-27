@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramSearchPostMatcher : SurfaceMatcher {
 
@@ -10,6 +10,6 @@ object InstagramSearchPostMatcher : SurfaceMatcher {
 
     private const val ADD_COMMENT_LABEL = "Add comment"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
+    override fun isTargetSurface(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(ADD_COMMENT_LABEL).isNotEmpty()
 }

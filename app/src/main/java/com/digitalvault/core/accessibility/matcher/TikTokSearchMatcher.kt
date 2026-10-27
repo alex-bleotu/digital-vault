@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokSearchMatcher : SurfaceMatcher {
 
@@ -15,7 +15,7 @@ object TikTokSearchMatcher : SurfaceMatcher {
     private const val EDIT_TEXT_CLASS_NAME = "android.widget.EditText"
     private const val BACK_LABEL = "Back"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.hasDescendantWithExactText(BACK_LABEL)) {
             return false
         }
@@ -25,10 +25,10 @@ object TikTokSearchMatcher : SurfaceMatcher {
             hasSearchEditText(root)
     }
 
-    private fun isSearchEntryScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isSearchEntryScreen(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(CLOSE_LABEL) && root.hasVisibleNodeWithExactText(RECENT_SEARCH_TIME_LABEL)
 
-    private fun hasSearchEditText(node: AccessibilityNodeInfo): Boolean {
+    private fun hasSearchEditText(node: ScreenNode): Boolean {
         if (node.className == EDIT_TEXT_CLASS_NAME && node.text?.startsWith(COMMENT_INPUT_PREFIX) != true) {
             return true
         }

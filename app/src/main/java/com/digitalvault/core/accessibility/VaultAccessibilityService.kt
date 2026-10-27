@@ -13,7 +13,6 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
@@ -78,7 +77,7 @@ private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
 private const val IG_DM_COMPOSER_VIEW_ID = "com.instagram.android:id/row_thread_composer_edittext"
 
-private fun isInstagramDmReplyBarVisible(root: AccessibilityNodeInfo): Boolean =
+private fun isInstagramDmReplyBarVisible(root: ScreenNode): Boolean =
     root.hasVisibleNodeWithTextOrHintPrefix("Reply to") ||
         root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
         root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
@@ -207,6 +206,10 @@ class VaultAccessibilityService : AccessibilityService() {
     @Volatile
     private var isAwaitingSelfTriggeredHomeBroadcast: Boolean = false
 
+    private var isDispatchingEvent: Boolean = false
+    private var hasCapturedEventScreen: Boolean = false
+    private var capturedEventScreen: ScreenNode? = null
+
     private class SurfaceEntry {
         var isInTarget: Boolean = false
         var enteredTargetAtMillis: Long = 0L
@@ -306,6 +309,17 @@ class VaultAccessibilityService : AccessibilityService() {
         if (event == null) {
             return
         }
+        isDispatchingEvent = true
+        try {
+            handleAccessibilityEvent(event)
+        } finally {
+            isDispatchingEvent = false
+            hasCapturedEventScreen = false
+            capturedEventScreen = null
+        }
+    }
+
+    private fun handleAccessibilityEvent(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
         if (packageName == this.packageName) {
             return
@@ -418,7 +432,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -428,6 +441,7 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {
             dismissForBreak(packageName)
         }
+        goHome(packageName)
     }
 
     private fun updateUsageTicker() {
@@ -574,7 +588,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return true
         }
         activeBlockedPackage = packageName
-        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -585,6 +598,7 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {
             dismissForBreak(packageName)
         }
+        goHome(packageName)
 
         return true
     }
@@ -599,7 +613,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (isWithinSelfTriggeredHomeGuard()) {
             return
         }
-        val root = rootInActiveWindow ?: return
+        val root = activeScreen() ?: return
 
         if (blockedDomains.isEmpty()) {
             return
@@ -616,7 +630,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome(packageName)
         showTimeoutWall(
             domain,
             loadAppIcon(packageName),
@@ -624,9 +637,10 @@ class VaultAccessibilityService : AccessibilityService() {
             breakUsedToday = false,
             isDomainBlock = true,
         ) {}
+        goHome(packageName)
     }
 
-    private fun updateInstagramZone(root: AccessibilityNodeInfo) {
+    private fun updateInstagramZone(root: ScreenNode) {
         if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
             isInstagramSettingsOrProfile = false
             allowedInstagramReelIdentity = null
@@ -655,7 +669,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedInstagramZone(packageName: String): Boolean =
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramSettingsOrProfile
 
-    private fun updateTikTokZone(root: AccessibilityNodeInfo) {
+    private fun updateTikTokZone(root: ScreenNode) {
         val isOnMainTabBar = root.findVisibleNodesByText("For You").isNotEmpty() &&
             root.findVisibleNodesByText("Following").isNotEmpty()
         if (isOnMainTabBar) {
@@ -685,7 +699,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedTikTokZone(packageName: String): Boolean =
         packageName == TIKTOK_PACKAGE_NAME && (isTikTokBackNavigated || isTikTokDmVideoOpen)
 
-    private fun updateInstagramBackReelZone(root: AccessibilityNodeInfo) {
+    private fun updateInstagramBackReelZone(root: ScreenNode) {
         val isExploreGrid = isInstagramExploreGridScreen(root)
         val isLikedGrid = isInstagramLikedGridScreen(root)
         val isSavedGrid = isInstagramSavedGridScreen(root)
@@ -730,21 +744,21 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isInstagramExploreGridScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramExploreGridScreen(root: ScreenNode): Boolean =
         countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_MARKER) >= 2
 
-    private fun isInstagramLikedGridScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramLikedGridScreen(root: ScreenNode): Boolean =
         countDescendantsWithDescription(root, exact = GRID_TILE_DESCRIPTION_EXACT, marker = null) >= 2
 
-    private fun isInstagramSavedOverviewScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramSavedOverviewScreen(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText("Saved") && root.hasVisibleNodeWithExactText("Add to collection")
 
-    private fun isInstagramSavedCollectionScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramSavedCollectionScreen(root: ScreenNode): Boolean =
         isInstagramInSavedSection &&
             root.hasVisibleNodeWithExactText("Back") &&
             !isInstagramMainTabBarShowing(root)
 
-    private fun updateInstagramSavedSection(root: AccessibilityNodeInfo) {
+    private fun updateInstagramSavedSection(root: ScreenNode) {
         if (isInstagramSavedOverviewScreen(root)) {
             isInstagramInSavedSection = true
         } else if (isInstagramMainTabBarShowing(root)) {
@@ -752,14 +766,14 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isInstagramSavedGridScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramSavedGridScreen(root: ScreenNode): Boolean =
         countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_MARKER) >= 2 &&
             (isInstagramSavedOverviewScreen(root) || isInstagramSavedCollectionScreen(root))
 
-    private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramGridScreen(root: ScreenNode): Boolean =
         isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root) || isInstagramSavedGridScreen(root)
 
-    private fun countDescendantsWithDescription(node: AccessibilityNodeInfo, exact: String?, marker: String?): Int {
+    private fun countDescendantsWithDescription(node: ScreenNode, exact: String?, marker: String?): Int {
         val description = node.contentDescription?.toString()
         val matches = node.isVisibleToUser &&
             description != null &&
@@ -782,7 +796,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isSuppressedInstagramDmReelZone(packageName: String): Boolean =
         packageName == InstagramZoneGuard.PACKAGE_NAME && isInstagramDmReelExempt
 
-    private fun updateInstagramReelContext(root: AccessibilityNodeInfo) {
+    private fun updateInstagramReelContext(root: ScreenNode) {
         if (isInstagramReelsMatcherActive(root)) {
             isInstagramReelContext = true
 
@@ -793,7 +807,7 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun updateInstagramDmReelExemption(root: AccessibilityNodeInfo) {
+    private fun updateInstagramDmReelExemption(root: ScreenNode) {
         if (isKnownNonDmReelInstagramScreen(root)) {
             instagramDmReelLockedIdentity = null
             isInstagramDmReelExempt = false
@@ -820,7 +834,7 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isInstagramReelsMatcherActive(root: AccessibilityNodeInfo): Boolean {
+    private fun isInstagramReelsMatcherActive(root: ScreenNode): Boolean {
         if (isInstagramDmReelExempt ||
             isInstagramDmReplyBarVisible(root) ||
             InstagramReelsMatcher.isDmMediaViewer(root)
@@ -836,27 +850,27 @@ class VaultAccessibilityService : AccessibilityService() {
                     InstagramReelsMatcher.isPlaybackControlsDrawer(root)))
     }
 
-    private fun isKnownNonReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isKnownNonReelInstagramScreen(root: ScreenNode): Boolean =
         isKnownNonDmReelInstagramScreen(root) ||
             isInstagramDmReplyBarVisible(root) ||
             InstagramReelsMatcher.isDmMediaViewer(root)
 
-    private fun isKnownNonDmReelInstagramScreen(root: AccessibilityNodeInfo): Boolean =
+    private fun isKnownNonDmReelInstagramScreen(root: ScreenNode): Boolean =
         InstagramZoneGuard.isMainReelsTab(root) ||
             InstagramZoneGuard.isHomeFeed(root) ||
             InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
             isInstagramGridScreen(root) ||
             isInstagramMainTabBarShowing(root)
 
-    private fun isInstagramMainTabBarShowing(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramMainTabBarShowing(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText("Home") && root.hasVisibleNodeWithExactText("Profile")
 
-    private fun isInstagramStoryViewersSheet(root: AccessibilityNodeInfo): Boolean =
+    private fun isInstagramStoryViewersSheet(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText("Who viewed your story") ||
             root.hasVisibleNodeWithExactText("Story replies") ||
             root.anyVisibleDescendantDescriptionMatches { it.toString().endsWith("liked your story") }
 
-    private fun updateInstagramHomeFeedContext(root: AccessibilityNodeInfo) {
+    private fun updateInstagramHomeFeedContext(root: ScreenNode) {
         if (InstagramShareMatcher.isTargetSurface(root)) {
             return
         }
@@ -954,7 +968,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -964,15 +977,29 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {
             dismissForBreak(packageName)
         }
+        goHome(packageName)
     }
 
-    private fun matchedRoot(packageName: String): AccessibilityNodeInfo? {
-        val root = rootInActiveWindow ?: return null
+    private fun activeScreen(): ScreenNode? {
+        if (isDispatchingEvent && hasCapturedEventScreen) {
+            return capturedEventScreen
+        }
+        val screen = rootInActiveWindow?.let(ScreenNode::capture)
+        if (isDispatchingEvent) {
+            capturedEventScreen = screen
+            hasCapturedEventScreen = true
+        }
+
+        return screen
+    }
+
+    private fun matchedRoot(packageName: String): ScreenNode? {
+        val root = activeScreen() ?: return null
 
         return if (root.packageName?.toString() == packageName) root else null
     }
 
-    private fun isSurfaceMatcherActive(matcher: SurfaceMatcher, root: AccessibilityNodeInfo): Boolean {
+    private fun isSurfaceMatcherActive(matcher: SurfaceMatcher, root: ScreenNode): Boolean {
         if (matcher.id in FAST_TRIGGER_SURFACE_IDS && !isInstagramReelContext) {
             return false
         }
@@ -1081,7 +1108,6 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         activeBlockedPackage = packageName
-        goHome(packageName)
         val usedToday = hasUsedBreakToday(packageName)
         showTimeoutWall(
             loadAppLabel(packageName),
@@ -1091,6 +1117,7 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {
             dismissForBreak(packageName)
         }
+        goHome(packageName)
     }
 
     private fun goHome(packageName: String) {
@@ -1198,7 +1225,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (overlayController?.isShowing == true) {
             return
         }
-        val root = rootInActiveWindow ?: return
+        val root = activeScreen() ?: return
         if (root.packageName?.toString() !in SettingsGuard.watchedPackages) {
             return
         }

@@ -1,8 +1,8 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
-private fun isShortsPlayer(root: AccessibilityNodeInfo): Boolean {
+private fun isShortsPlayer(root: ScreenNode): Boolean {
     var hasComments = false
     var hasLike = false
 
@@ -23,7 +23,7 @@ object YouTubeShortsMatcher : SurfaceMatcher {
     override val packageName = "com.google.android.youtube"
     override val surfaceLabel = "Shorts"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean = isShortsPlayer(root)
+    override fun isTargetSurface(root: ScreenNode): Boolean = isShortsPlayer(root)
 }
 
 object YouTubeRvxShortsMatcher : SurfaceMatcher {
@@ -32,5 +32,5 @@ object YouTubeRvxShortsMatcher : SurfaceMatcher {
     override val packageName = "app.rvx.android.youtube"
     override val surfaceLabel = "Shorts"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean = isShortsPlayer(root)
+    override fun isTargetSurface(root: ScreenNode): Boolean = isShortsPlayer(root)
 }

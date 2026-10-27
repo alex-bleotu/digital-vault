@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokFeedMatcher : SurfaceMatcher {
 
@@ -17,7 +17,7 @@ object TikTokFeedMatcher : SurfaceMatcher {
     )
     private const val DM_COMPOSER_TEXT_PREFIX = "Message "
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (isDmComposerVisible(root)) {
             return false
         }
@@ -28,14 +28,14 @@ object TikTokFeedMatcher : SurfaceMatcher {
         return isWatchingFeedVideo(root)
     }
 
-    fun isDmComposerVisible(root: AccessibilityNodeInfo): Boolean =
+    fun isDmComposerVisible(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithTextOrHintPrefix(DM_COMPOSER_TEXT_PREFIX)
 
-    private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =
+    private fun isTabBarShowing(root: ScreenNode): Boolean =
         discoveryTabLabels.any { root.findVisibleNodesByText(it).isNotEmpty() } &&
             requiredTabLabels.all { root.findVisibleNodesByText(it).isNotEmpty() }
 
-    fun isWatchingFeedVideo(root: AccessibilityNodeInfo): Boolean =
+    fun isWatchingFeedVideo(root: ScreenNode): Boolean =
         videoActionDescriptionPrefixes.all { prefix ->
             root.anyVisibleDescendantDescriptionMatches { it.startsWith(prefix) }
         }

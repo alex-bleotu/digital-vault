@@ -1,7 +1,7 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
 import com.digitalvault.core.accessibility.InstagramZoneGuard
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramSuggestedReelMatcher : SurfaceMatcher {
 
@@ -11,7 +11,7 @@ object InstagramSuggestedReelMatcher : SurfaceMatcher {
 
     private const val SEND_TO_CHAT_LABEL = "Send to chat"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
+    override fun isTargetSurface(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(SEND_TO_CHAT_LABEL).isNotEmpty() &&
             InstagramZoneGuard.findReelIdentity(root) != null
 }

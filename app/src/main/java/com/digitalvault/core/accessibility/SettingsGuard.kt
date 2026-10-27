@@ -1,6 +1,5 @@
 package com.digitalvault.core.accessibility
 
-import android.view.accessibility.AccessibilityNodeInfo
 
 object SettingsGuard {
 
@@ -25,7 +24,7 @@ object SettingsGuard {
     )
     private const val MAX_NODES = 120
 
-    fun isProtectedScreen(root: AccessibilityNodeInfo, appLabel: String): Boolean {
+    fun isProtectedScreen(root: ScreenNode, appLabel: String): Boolean {
         val texts = collectTexts(root)
         if (texts.isEmpty()) {
             return false
@@ -37,9 +36,9 @@ object SettingsGuard {
         return mentionsApp && mentionsDanger
     }
 
-    private fun collectTexts(root: AccessibilityNodeInfo): List<String> {
+    private fun collectTexts(root: ScreenNode): List<String> {
         val texts = mutableListOf<String>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        val queue = ArrayDeque<ScreenNode>()
         queue.add(root)
         var visited = 0
 

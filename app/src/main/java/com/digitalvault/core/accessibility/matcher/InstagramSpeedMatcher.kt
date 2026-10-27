@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramSpeedMatcher : SurfaceMatcher {
 
@@ -10,7 +10,7 @@ object InstagramSpeedMatcher : SurfaceMatcher {
 
     private const val SPEED_LABEL_PREFIX = "Slide down to lock"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean =
+    override fun isTargetSurface(root: ScreenNode): Boolean =
         root.anyDescendantTextMatches { it.startsWith(SPEED_LABEL_PREFIX) } ||
             root.anyDescendantDescriptionMatches { it.startsWith(SPEED_LABEL_PREFIX) }
 }

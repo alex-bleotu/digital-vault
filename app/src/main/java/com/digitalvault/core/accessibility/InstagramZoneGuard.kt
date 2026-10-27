@@ -1,6 +1,5 @@
 package com.digitalvault.core.accessibility
 
-import android.view.accessibility.AccessibilityNodeInfo
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
 
@@ -16,20 +15,20 @@ object InstagramZoneGuard {
     private const val YOUR_STORY_LABEL = "Your story"
     private const val BACK_BUTTON_LABEL = "Back"
 
-    fun isMainReelsTab(root: AccessibilityNodeInfo): Boolean =
+    fun isMainReelsTab(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) &&
             root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL) &&
             !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL)
 
-    fun isHomeFeed(root: AccessibilityNodeInfo): Boolean =
+    fun isHomeFeed(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL }
 
-    fun isSettingsOrOwnProfile(root: AccessibilityNodeInfo): Boolean =
+    fun isSettingsOrOwnProfile(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(SETTINGS_MENU_LABEL).isNotEmpty() ||
             root.findVisibleNodesByText(EDIT_PROFILE_LABEL).isNotEmpty() ||
             root.findVisibleNodesByText(ACTIVITY_FILTER_LABEL).isNotEmpty()
 
-    fun findReelIdentity(root: AccessibilityNodeInfo): String? {
+    fun findReelIdentity(root: ScreenNode): String? {
         val description = root.contentDescription?.toString()
         if (root.isVisibleToUser &&
             description != null &&

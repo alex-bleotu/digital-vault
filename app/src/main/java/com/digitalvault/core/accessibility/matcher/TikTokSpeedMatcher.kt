@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object TikTokSpeedMatcher : SurfaceMatcher {
 
@@ -11,7 +11,7 @@ object TikTokSpeedMatcher : SurfaceMatcher {
     private const val SPEED_TEXT_PREFIX = "Speed: "
     private const val BACK_LABEL = "Back"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.hasDescendantWithExactText(BACK_LABEL)) {
             return false
         }

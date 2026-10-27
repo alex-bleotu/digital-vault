@@ -1,6 +1,5 @@
 package com.digitalvault.core.accessibility
 
-import android.view.accessibility.AccessibilityNodeInfo
 
 object BrowserGuard {
 
@@ -36,7 +35,7 @@ object BrowserGuard {
         "search your incognito tabs",
     )
 
-    fun findBlockedDomain(root: AccessibilityNodeInfo, blockedDomains: Set<String>, packageName: String): String? {
+    fun findBlockedDomain(root: ScreenNode, blockedDomains: Set<String>, packageName: String): String? {
         if (blockedDomains.isEmpty()) {
             return null
         }
@@ -49,7 +48,7 @@ object BrowserGuard {
         return blockedDomains.firstOrNull { domain -> texts.any { matchesHost(it, domain) } }
     }
 
-    fun isIncognitoActive(root: AccessibilityNodeInfo): Boolean {
+    fun isIncognitoActive(root: ScreenNode): Boolean {
         val texts = collectVisibleTexts(root)
 
         return incognitoMarkers.any { marker -> texts.any { it.contains(marker) } }
@@ -62,9 +61,9 @@ object BrowserGuard {
         return boundaryPattern.containsMatchIn(text)
     }
 
-    private fun collectAddressBarTexts(root: AccessibilityNodeInfo): List<String> {
+    private fun collectAddressBarTexts(root: ScreenNode): List<String> {
         val texts = mutableListOf<String>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        val queue = ArrayDeque<ScreenNode>()
         queue.add(root)
         var visited = 0
 
@@ -83,9 +82,9 @@ object BrowserGuard {
         return texts
     }
 
-    private fun collectVisibleTexts(root: AccessibilityNodeInfo): List<String> {
+    private fun collectVisibleTexts(root: ScreenNode): List<String> {
         val texts = mutableListOf<String>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        val queue = ArrayDeque<ScreenNode>()
         queue.add(root)
         var visited = 0
 

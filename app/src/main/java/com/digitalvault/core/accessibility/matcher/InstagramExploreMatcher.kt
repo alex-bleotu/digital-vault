@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramExploreMatcher : SurfaceMatcher {
 
@@ -12,7 +12,7 @@ object InstagramExploreMatcher : SurfaceMatcher {
     private const val BACK_LABEL = "Back"
     private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.findVisibleNodesByText(BACK_LABEL).isNotEmpty()) {
             return false
         }
@@ -23,7 +23,7 @@ object InstagramExploreMatcher : SurfaceMatcher {
         return countGridTiles(root) >= 2
     }
 
-    private fun countGridTiles(node: AccessibilityNodeInfo): Int {
+    private fun countGridTiles(node: ScreenNode): Int {
         val description = node.contentDescription?.toString()
         var count = if (node.isVisibleToUser && description != null && description.contains(GRID_TILE_DESCRIPTION_MARKER)) {
             1

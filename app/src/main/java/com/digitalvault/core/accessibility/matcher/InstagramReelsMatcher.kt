@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramReelsMatcher : SurfaceMatcher {
 
@@ -30,7 +30,7 @@ object InstagramReelsMatcher : SurfaceMatcher {
     private const val PLAYBACK_CONTROLS_SPEED_LABEL = "Speed"
     private const val PLAYBACK_CONTROLS_AUTO_SCROLL_LABEL = "Auto-scroll"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.hasVisibleNodeWithTextOrHintPrefix(DIRECT_MESSAGE_REPLY_PREFIX) ||
             root.hasVisibleNodeWithViewId(DM_COMPOSER_VIEW_ID)
         ) {
@@ -46,30 +46,30 @@ object InstagramReelsMatcher : SurfaceMatcher {
         return isWatchingReel(root)
     }
 
-    private fun isLikesAndPlaysDropdown(root: AccessibilityNodeInfo): Boolean =
+    private fun isLikesAndPlaysDropdown(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(LIKES_AND_PLAYS_HEADER) ||
             root.hasVisibleNodeWithExactText(REACTIONS_AND_PLAYS_HEADER)
 
-    fun isCommentsDrawer(root: AccessibilityNodeInfo): Boolean =
+    fun isCommentsDrawer(root: ScreenNode): Boolean =
         hasVisibleDescendantOfClass(root, COMMENT_INPUT_CLASS_NAME)
 
-    fun isNoteQuickReplyDrawer(root: AccessibilityNodeInfo): Boolean =
+    fun isNoteQuickReplyDrawer(root: ScreenNode): Boolean =
         root.anyVisibleDescendantDescriptionMatches { it.toString().endsWith(NOTE_QUICK_REPLY_SUFFIX) }
 
-    fun isDmMediaViewer(root: AccessibilityNodeInfo): Boolean =
+    fun isDmMediaViewer(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(MEDIA_VIEWER_PHOTO_DESCRIPTION) ||
             root.hasVisibleNodeWithExactText(MEDIA_VIEWER_VIDEO_DESCRIPTION)
 
-    fun isReplyContextMenu(root: AccessibilityNodeInfo): Boolean =
+    fun isReplyContextMenu(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(REPLY_MENU_ITEM_LABEL) &&
             root.hasVisibleNodeWithExactText(MUTE_MENU_ITEM_LABEL) &&
             root.anyVisibleDescendantTextMatches { it.toString().equals(VIEW_PROFILE_MENU_ITEM_LABEL, ignoreCase = true) }
 
-    fun isPlaybackControlsDrawer(root: AccessibilityNodeInfo): Boolean =
+    fun isPlaybackControlsDrawer(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(PLAYBACK_CONTROLS_SPEED_LABEL) &&
             root.hasVisibleNodeWithExactText(PLAYBACK_CONTROLS_AUTO_SCROLL_LABEL)
 
-    private fun hasVisibleDescendantOfClass(node: AccessibilityNodeInfo, className: String): Boolean {
+    private fun hasVisibleDescendantOfClass(node: ScreenNode, className: String): Boolean {
         if (node.isVisibleToUser && node.className?.toString() == className) {
             return true
         }
@@ -83,10 +83,10 @@ object InstagramReelsMatcher : SurfaceMatcher {
         return false
     }
 
-    private fun isTabBarShowing(root: AccessibilityNodeInfo): Boolean =
+    private fun isTabBarShowing(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) && root.hasVisibleNodeWithExactText(FRIENDS_TAB_LABEL)
 
-    private fun isWatchingReel(node: AccessibilityNodeInfo): Boolean {
+    private fun isWatchingReel(node: ScreenNode): Boolean {
         val description = node.contentDescription?.toString()
         if (node.isVisibleToUser &&
             description != null &&

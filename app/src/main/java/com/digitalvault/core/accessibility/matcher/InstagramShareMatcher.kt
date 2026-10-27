@@ -1,6 +1,6 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 object InstagramShareMatcher : SurfaceMatcher {
 
@@ -12,7 +12,7 @@ object InstagramShareMatcher : SurfaceMatcher {
     private val collectionLabels = listOf("Collections", "New collection")
     private const val FEED_POST_MORE_MENU_LABEL = "Why you're seeing this"
 
-    override fun isTargetSurface(root: AccessibilityNodeInfo): Boolean {
+    override fun isTargetSurface(root: ScreenNode): Boolean {
         if (root.hasVisibleNodeWithExactText(FEED_POST_MORE_MENU_LABEL)) {
             return false
         }

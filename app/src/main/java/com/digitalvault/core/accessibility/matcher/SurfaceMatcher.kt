@@ -1,19 +1,19 @@
 package com.digitalvault.core.accessibility.matcher
 
-import android.view.accessibility.AccessibilityNodeInfo
+import com.digitalvault.core.accessibility.ScreenNode
 
 interface SurfaceMatcher {
     val id: String
     val packageName: String
     val surfaceLabel: String
 
-    fun isTargetSurface(root: AccessibilityNodeInfo): Boolean
+    fun isTargetSurface(root: ScreenNode): Boolean
 }
 
-fun AccessibilityNodeInfo.findVisibleNodesByText(text: String): List<AccessibilityNodeInfo> =
-    findAccessibilityNodeInfosByText(text).filter { it.isVisibleToUser }
+fun ScreenNode.findVisibleNodesByText(text: String): List<ScreenNode> =
+    findNodesByText(text).filter { it.isVisibleToUser }
 
-fun AccessibilityNodeInfo.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Boolean {
+fun ScreenNode.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Boolean {
     if (isVisibleToUser) {
         val text = text?.toString()
         val hint = hintText?.toString()
@@ -30,7 +30,7 @@ fun AccessibilityNodeInfo.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Bo
     return false
 }
 
-fun AccessibilityNodeInfo.hasVisibleNodeWithViewId(viewId: String): Boolean {
+fun ScreenNode.hasVisibleNodeWithViewId(viewId: String): Boolean {
     if (isVisibleToUser && viewIdResourceName == viewId) {
         return true
     }
@@ -43,7 +43,7 @@ fun AccessibilityNodeInfo.hasVisibleNodeWithViewId(viewId: String): Boolean {
     return false
 }
 
-fun AccessibilityNodeInfo.hasVisibleNodeWithExactText(target: String): Boolean {
+fun ScreenNode.hasVisibleNodeWithExactText(target: String): Boolean {
     if (isVisibleToUser && (text?.toString() == target || contentDescription?.toString() == target)) {
         return true
     }
@@ -56,7 +56,7 @@ fun AccessibilityNodeInfo.hasVisibleNodeWithExactText(target: String): Boolean {
     return false
 }
 
-fun AccessibilityNodeInfo.anyDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
+fun ScreenNode.anyDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
     contentDescription?.let { if (predicate(it)) return true }
     for (index in 0 until childCount) {
         if (getChild(index)?.anyDescendantDescriptionMatches(predicate) == true) {
@@ -67,7 +67,7 @@ fun AccessibilityNodeInfo.anyDescendantDescriptionMatches(predicate: (CharSequen
     return false
 }
 
-fun AccessibilityNodeInfo.anyDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
+fun ScreenNode.anyDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
     text?.let { if (predicate(it)) return true }
     for (index in 0 until childCount) {
         if (getChild(index)?.anyDescendantTextMatches(predicate) == true) {
@@ -78,7 +78,7 @@ fun AccessibilityNodeInfo.anyDescendantTextMatches(predicate: (CharSequence) -> 
     return false
 }
 
-fun AccessibilityNodeInfo.hasDescendantWithExactText(target: String): Boolean {
+fun ScreenNode.hasDescendantWithExactText(target: String): Boolean {
     if (text?.toString() == target || contentDescription?.toString() == target) {
         return true
     }
@@ -91,7 +91,7 @@ fun AccessibilityNodeInfo.hasDescendantWithExactText(target: String): Boolean {
     return false
 }
 
-fun AccessibilityNodeInfo.anyVisibleDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
+fun ScreenNode.anyVisibleDescendantTextMatches(predicate: (CharSequence) -> Boolean): Boolean {
     if (isVisibleToUser) {
         text?.let { if (predicate(it)) return true }
     }
@@ -104,7 +104,7 @@ fun AccessibilityNodeInfo.anyVisibleDescendantTextMatches(predicate: (CharSequen
     return false
 }
 
-fun AccessibilityNodeInfo.anyVisibleDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
+fun ScreenNode.anyVisibleDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
     if (isVisibleToUser) {
         contentDescription?.let { if (predicate(it)) return true }
     }
