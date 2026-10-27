@@ -28,6 +28,12 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     var isDownloaded by mutableStateOf(false)
         private set
 
+    var downloadedBytes by mutableStateOf(0L)
+        private set
+
+    var totalBytes by mutableStateOf(0L)
+        private set
+
     init {
         viewModelScope.launch {
             val context = getApplication<Application>()
@@ -52,9 +58,16 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val downloadedApk = withContext(Dispatchers.IO) { UpdateInstaller.findDownloadedApk(context, info) }
             if (downloadedApk == null) {
+                downloadedBytes = 0L
+                totalBytes = info.apkSizeBytes
                 status = UpdateStatus.DOWNLOADING
             }
-            val file = downloadedApk ?: UpdateInstaller.downloadApk(context, info)
+            val file = downloadedApk ?: UpdateInstaller.downloadApk(context, info) { downloaded, total ->
+                withContext(Dispatchers.Main) {
+                    downloadedBytes = downloaded
+                    totalBytes = total
+                }
+            }
             if (file == null) {
                 status = UpdateStatus.FAILED
 

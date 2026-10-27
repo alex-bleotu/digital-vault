@@ -14,10 +14,15 @@ import kotlinx.coroutines.withContext
 private const val TIMEOUT_MILLIS = 15_000
 private const val UPDATES_DIRECTORY_NAME = "updates"
 private const val PARTIAL_DOWNLOAD_SUFFIX = ".part"
+private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024
 
 object UpdateInstaller {
 
-    suspend fun downloadApk(context: Context, info: UpdateInfo): File? = withContext(Dispatchers.IO) {
+    suspend fun downloadApk(
+        context: Context,
+        info: UpdateInfo,
+        onProgress: suspend (downloadedBytes: Long, totalBytes: Long) -> Unit,
+    ): File? = withContext(Dispatchers.IO) {
         runCatching {
             val apkFile = apkFileFor(context, info)
             deleteDownloadsExcept(context, keep = null)
@@ -34,8 +39,26 @@ object UpdateInstaller {
                 return@withContext null
             }
 
+            val totalBytes = info.apkSizeBytes.takeIf { it > 0 } ?: connection.contentLengthLong
             connection.inputStream.use { input ->
-                partialFile.outputStream().use { output -> input.copyTo(output) }
+                partialFile.outputStream().use { output ->
+                    val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
+                    var downloadedBytes = 0L
+                    var lastReportedPercent = -1L
+                    while (true) {
+                        val readBytes = input.read(buffer)
+                        if (readBytes < 0) {
+                            break
+                        }
+                        output.write(buffer, 0, readBytes)
+                        downloadedBytes += readBytes
+                        val percent = if (totalBytes > 0) downloadedBytes * 100 / totalBytes else -1L
+                        if (percent != lastReportedPercent) {
+                            lastReportedPercent = percent
+                            onProgress(downloadedBytes, totalBytes)
+                        }
+                    }
+                }
             }
             connection.disconnect()
 
