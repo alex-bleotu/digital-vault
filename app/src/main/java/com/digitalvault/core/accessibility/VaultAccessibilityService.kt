@@ -135,7 +135,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private var isInstagramBackReelExempt: Boolean = false
 
     @Volatile
-    private var wasLastInstagramScreenNonExemptOrigin: Boolean = false
+    private var wasLastInstagramScreenNonExemptOrigin: Boolean = true
 
     @Volatile
     private var wasLastInstagramScreenSingleReelOrigin: Boolean = false
