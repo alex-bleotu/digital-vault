@@ -8,7 +8,7 @@ object InstagramExploreMatcher : SurfaceMatcher {
     override val packageName = "com.instagram.android"
     override val surfaceLabel = "Explore grid"
 
-    private const val SETTINGS_LABEL = "Settings"
+    private val headerLabels = listOf("Settings", "Search")
     private const val BACK_LABEL = "Back"
     private const val GRID_TILE_DESCRIPTION_MARKER = " at row "
 
@@ -16,7 +16,7 @@ object InstagramExploreMatcher : SurfaceMatcher {
         if (root.findVisibleNodesByText(BACK_LABEL).isNotEmpty()) {
             return false
         }
-        if (!root.hasVisibleNodeWithExactText(SETTINGS_LABEL)) {
+        if (headerLabels.none { root.hasVisibleNodeWithExactText(it) }) {
             return false
         }
 
