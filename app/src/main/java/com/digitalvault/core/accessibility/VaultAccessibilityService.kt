@@ -40,6 +40,7 @@ import com.digitalvault.core.data.VaultRepository
 import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.core.data.vaultDataStore
+import com.digitalvault.core.permissions.SetupPermissions
 import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.lock.BlockOverlayController
 import java.time.Duration
@@ -1229,7 +1230,8 @@ class VaultAccessibilityService : AccessibilityService() {
         if (root.packageName?.toString() !in SettingsGuard.watchedPackages) {
             return
         }
-        if (!SettingsGuard.isProtectedScreen(root, getString(R.string.app_name))) {
+        val isDeviceAdminActive = SetupPermissions(this).isDeviceAdminActive()
+        if (!SettingsGuard.isProtectedScreen(root, getString(R.string.app_name), isDeviceAdminActive)) {
             return
         }
         val repository = vaultRepository ?: return

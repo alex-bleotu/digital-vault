@@ -23,10 +23,15 @@ object SettingsGuard {
         "clear storage",
     )
     private const val MAX_NODES = 120
+    private const val ACTIVATE_ADMIN_PHRASE = "activate this device admin"
+    private const val DEACTIVATE_KEYWORD = "deactivate"
 
-    fun isProtectedScreen(root: ScreenNode, appLabel: String): Boolean {
+    fun isProtectedScreen(root: ScreenNode, appLabel: String, isDeviceAdminActive: Boolean): Boolean {
         val texts = collectTexts(root)
         if (texts.isEmpty()) {
+            return false
+        }
+        if (!isDeviceAdminActive && isAdminActivationScreen(texts)) {
             return false
         }
         val label = appLabel.lowercase()
@@ -35,6 +40,9 @@ object SettingsGuard {
 
         return mentionsApp && mentionsDanger
     }
+
+    private fun isAdminActivationScreen(texts: List<String>): Boolean =
+        texts.any { it.contains(ACTIVATE_ADMIN_PHRASE) } && texts.none { it.contains(DEACTIVATE_KEYWORD) }
 
     private fun collectTexts(root: ScreenNode): List<String> {
         val texts = mutableListOf<String>()
