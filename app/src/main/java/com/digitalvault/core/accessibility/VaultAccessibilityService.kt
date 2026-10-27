@@ -144,6 +144,9 @@ class VaultAccessibilityService : AccessibilityService() {
     private var isInstagramOnGridStreak: Boolean = false
 
     @Volatile
+    private var isInstagramInSavedSection: Boolean = false
+
+    @Volatile
     private var isInstagramBackReelExemptFromSingleReelOrigin: Boolean = false
 
     @Volatile
@@ -277,6 +280,7 @@ class VaultAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    matchedRoot(packageName)?.let { updateInstagramSavedSection(it) }
                     matchedRoot(packageName)?.let { updateInstagramZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramDmReelExemption(it) }
@@ -306,6 +310,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
+                    matchedRoot(packageName)?.let { updateInstagramSavedSection(it) }
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
                     matchedRoot(packageName)?.let { updateInstagramDmReelExemption(it) }
                     matchedRoot(packageName)?.let { updateInstagramReelContext(it) }
@@ -519,10 +524,25 @@ class VaultAccessibilityService : AccessibilityService() {
     private fun isInstagramLikedGridScreen(root: AccessibilityNodeInfo): Boolean =
         countDescendantsWithDescription(root, exact = GRID_TILE_DESCRIPTION_EXACT, marker = null) >= 2
 
+    private fun isInstagramSavedOverviewScreen(root: AccessibilityNodeInfo): Boolean =
+        root.hasVisibleNodeWithExactText("Saved") && root.hasVisibleNodeWithExactText("Add to collection")
+
+    private fun isInstagramSavedCollectionScreen(root: AccessibilityNodeInfo): Boolean =
+        isInstagramInSavedSection &&
+            root.hasVisibleNodeWithExactText("Back") &&
+            !isInstagramMainTabBarShowing(root)
+
+    private fun updateInstagramSavedSection(root: AccessibilityNodeInfo) {
+        if (isInstagramSavedOverviewScreen(root)) {
+            isInstagramInSavedSection = true
+        } else if (isInstagramMainTabBarShowing(root)) {
+            isInstagramInSavedSection = false
+        }
+    }
+
     private fun isInstagramSavedGridScreen(root: AccessibilityNodeInfo): Boolean =
         countDescendantsWithDescription(root, exact = null, marker = GRID_TILE_DESCRIPTION_MARKER) >= 2 &&
-            root.hasVisibleNodeWithExactText("Saved") &&
-            root.hasVisibleNodeWithExactText("Add to collection")
+            (isInstagramSavedOverviewScreen(root) || isInstagramSavedCollectionScreen(root))
 
     private fun isInstagramGridScreen(root: AccessibilityNodeInfo): Boolean =
         isInstagramExploreGridScreen(root) || isInstagramLikedGridScreen(root) || isInstagramSavedGridScreen(root)
