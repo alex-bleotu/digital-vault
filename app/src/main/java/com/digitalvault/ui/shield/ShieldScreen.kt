@@ -47,6 +47,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.digitalvault.ui.theme.VaultTheme
+import com.digitalvault.ui.components.ScrollEdgeShadow
+import com.digitalvault.ui.components.ScrollEdge
 
 @Composable
 fun ShieldScreen(
@@ -75,146 +77,158 @@ fun ShieldScreen(
         }
     }
 
-    Column(
+    val screenScrollState = rememberScrollState()
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ink)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 24.dp),
+            .background(colors.ink),
     ) {
-        Text(
-            text = "Shield",
-            style = MaterialTheme.typography.headlineMedium,
-            color = colors.textPrimary,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = if (state.blockedDomains.isNotEmpty()) {
-                "${state.blockedDomains.size} DOMAINS BLOCKED"
-            } else {
-                "NO DOMAINS BLOCKED YET"
-            },
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textMuted,
-        )
-
-        Spacer(Modifier.height(20.dp))
-        Surface(
-            shape = VaultTheme.shapes.medium,
-            color = colors.surface,
-            modifier = Modifier.fillMaxWidth(),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(screenScrollState)
+                .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "System-wide DNS blocking",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textPrimary,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Blocks these domains for every app and browser on the device, not just the ones Digital Vault watches.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textMuted,
-                    )
-                }
-                Spacer(Modifier.width(16.dp))
-                Switch(
-                    checked = state.isVpnBlockingEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            requestVpnBlocking()
-                        } else {
-                            viewModel.disableVpnBlocking()
-                        }
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = colors.brass,
-                        checkedTrackColor = colors.surfaceRaised,
-                    ),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = state.newDomainDraft,
-                onValueChange = viewModel::updateNewDomainDraft,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(52.dp),
-                textStyle = MaterialTheme.typography.labelLarge,
-                placeholder = {
-                    Text(
-                        text = "domain.com",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.textMuted,
-                    )
-                },
-                singleLine = true,
-                shape = VaultTheme.shapes.medium,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { viewModel.addBlockedDomain() }),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = colors.textPrimary,
-                    unfocusedTextColor = colors.textPrimary,
-                    focusedBorderColor = colors.brass,
-                    unfocusedBorderColor = colors.surfaceRaised,
-                    cursorColor = colors.brass,
-                ),
+            Text(
+                text = "Shield",
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.textPrimary,
             )
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                onClick = viewModel::addBlockedDomain,
-                shape = VaultTheme.shapes.medium,
-                color = colors.brass,
-                modifier = Modifier.size(52.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = "Add domain",
-                        tint = colors.ink,
-                    )
-                }
-            }
-        }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (state.blockedDomains.isNotEmpty()) {
+                    "${state.blockedDomains.size} ${if (state.blockedDomains.size == 1) "DOMAIN" else "DOMAINS"} BLOCKED"
+                } else {
+                    "NO DOMAINS BLOCKED YET"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
 
-        Spacer(Modifier.height(16.dp))
-        if (state.blockedDomains.isEmpty()) {
+            Spacer(Modifier.height(20.dp))
             Surface(
                 shape = VaultTheme.shapes.medium,
                 color = colors.surface,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "Add a domain to block it.\nEnforced by the same engine that blocks apps, no VPN needed.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textMuted,
-                        textAlign = TextAlign.Center,
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "System-wide DNS blocking",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Blocks these domains in every app.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted,
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Switch(
+                        checked = state.isVpnBlockingEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                requestVpnBlocking()
+                            } else {
+                                viewModel.disableVpnBlocking()
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = colors.brass,
+                            checkedTrackColor = colors.surfaceRaised,
+                        ),
                     )
                 }
             }
-        } else {
-            Column {
-                state.blockedDomains.forEachIndexed { index, domain ->
-                    if (index > 0) {
-                        Spacer(Modifier.height(8.dp))
+
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = state.newDomainDraft,
+                    onValueChange = viewModel::updateNewDomainDraft,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    textStyle = MaterialTheme.typography.labelLarge,
+                    placeholder = {
+                        Text(
+                            text = "domain.com",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.textMuted,
+                        )
+                    },
+                    singleLine = true,
+                    shape = VaultTheme.shapes.medium,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { viewModel.addBlockedDomain() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedBorderColor = colors.brass,
+                        unfocusedBorderColor = colors.surfaceRaised,
+                        cursorColor = colors.brass,
+                    ),
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    onClick = viewModel::addBlockedDomain,
+                    shape = VaultTheme.shapes.medium,
+                    color = colors.brass,
+                    modifier = Modifier.size(52.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Add domain",
+                            tint = colors.ink,
+                        )
                     }
-                    DomainRow(domain = domain, onRemove = { viewModel.removeBlockedDomain(domain) })
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            if (state.blockedDomains.isEmpty()) {
+                Surface(
+                    shape = VaultTheme.shapes.medium,
+                    color = colors.surface,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Add a domain to block it.\nEnforced by the same engine that blocks apps, no VPN needed.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textMuted,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            } else {
+                Column {
+                    state.blockedDomains.forEachIndexed { index, domain ->
+                        if (index > 0) {
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        DomainRow(domain = domain, onRemove = { viewModel.removeBlockedDomain(domain) })
+                    }
                 }
             }
         }
+        ScrollEdgeShadow(
+            edge = ScrollEdge.BOTTOM,
+            scrollState = screenScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
