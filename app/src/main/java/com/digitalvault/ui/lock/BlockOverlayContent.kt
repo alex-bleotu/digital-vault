@@ -75,6 +75,7 @@ data class BlockOverlayRequest(
     val allowBreak: Boolean = true,
     val breakUsedToday: Boolean = false,
     val isDomainBlock: Boolean = false,
+    val lockReason: String? = null,
 )
 
 @Composable
@@ -158,7 +159,7 @@ fun BlockOverlayContent(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "${request.appLabel} is locked.",
+                        text = listOfNotNull("${request.appLabel} is locked.", request.lockReason).joinToString(" "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textMuted,
                         textAlign = TextAlign.Center,

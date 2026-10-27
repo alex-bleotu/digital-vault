@@ -42,6 +42,7 @@ class BlockOverlayController(private val context: Context) {
         allowBreak: Boolean,
         breakUsedToday: Boolean,
         isDomainBlock: Boolean = false,
+        lockReason: String? = null,
         onDismissForBreak: () -> Unit,
         onExit: () -> Unit,
     ) {
@@ -54,6 +55,7 @@ class BlockOverlayController(private val context: Context) {
             allowBreak = allowBreak,
             breakUsedToday = breakUsedToday,
             isDomainBlock = isDomainBlock,
+            lockReason = lockReason,
         )
         attach(OverlayKind.TIMEOUT_WALL, focusable = false) {
             BlockOverlayContent(request = request, onDismissForBreak = onDismissForBreak, onExit = onExit)

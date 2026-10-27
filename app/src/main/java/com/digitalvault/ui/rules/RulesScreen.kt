@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,8 +19,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -39,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,28 +58,57 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
+import com.digitalvault.ui.components.ScrollEdge
+import com.digitalvault.ui.components.ScrollEdgeShadow
 import com.digitalvault.ui.theme.VaultTheme
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 private val YOUTUBE_SHORTS_PACKAGES = setOf("com.google.android.youtube", "app.rvx.android.youtube")
 private val GRACE_SECONDS_STOPS = listOf(0, 1, 5, 10, 15, 20, 30)
 private val HOME_SCROLL_THRESHOLD_STOPS = listOf(0.1f, 0.25f, 0.5f, 1f, 2.5f, 5f)
 private const val INSTAGRAM_PACKAGE_NAME = "com.instagram.android"
+
+private const val MINUTES_PER_DAY = 24 * 60
+private const val AUTO_SAVE_DEBOUNCE_MILLIS = 300L
+
+private enum class TimeField { DAILY_LIMIT, SCHEDULE_START, SCHEDULE_END }
+
+private fun formatClock(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+
+private fun formatDuration(minutes: Int): String = "%d:%02d".format(minutes / 60, minutes % 60)
+
+private fun formatUsage(minutes: Long): String =
+    if (minutes < 60) "${minutes}m" else "${minutes / 60}h ${"%02d".format(minutes % 60)}m"
 
 private fun formatHomeScrollThreshold(value: Float): String =
     if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
@@ -166,67 +202,81 @@ fun RulesScreen(
                     deleted.sortedBy { it.packageName.lowercase() }
             }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(installedRules, key = { it.packageName }) { rule ->
-                    RuleRow(
-                        rule = rule,
-                        label = labelByPackage[rule.packageName] ?: rule.packageName,
-                        icon = appByPackage[rule.packageName]?.icon,
-                        onClick = { editingRule = rule },
-                        onRemove = { viewModel.removeRule(rule.packageName) },
-                    )
-                }
+            val rulesListState = rememberLazyListState()
 
-                if (deletedRules.isNotEmpty()) {
-                    item(key = "deleted-apps-toggle") {
-                        Surface(
-                            onClick = { showDeletedApps = !showDeletedApps },
-                            shape = VaultTheme.shapes.medium,
-                            color = colors.surface,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                LazyColumn(
+                    state = rulesListState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(installedRules, key = { it.packageName }) { rule ->
+                        RuleRow(
+                            rule = rule,
+                            label = labelByPackage[rule.packageName] ?: rule.packageName,
+                            icon = appByPackage[rule.packageName]?.icon,
+                            onClick = { editingRule = rule },
+                            onRemove = { viewModel.removeRule(rule.packageName) },
+                        )
+                    }
+
+                    if (deletedRules.isNotEmpty()) {
+                        item(key = "deleted-apps-toggle") {
+                            Surface(
+                                onClick = { showDeletedApps = !showDeletedApps },
+                                shape = VaultTheme.shapes.medium,
+                                color = colors.surface,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(
-                                    text = "+${deletedRules.size} more",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = colors.textMuted,
-                                )
-                                val chevronRotation by animateFloatAsState(
-                                    targetValue = if (showDeletedApps) 180f else 0f,
-                                    label = "chevron",
-                                )
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = if (showDeletedApps) "Hide deleted apps" else "Show deleted apps",
-                                    tint = colors.brass,
-                                    modifier = Modifier.rotate(chevronRotation),
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "+${deletedRules.size} more",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = colors.textMuted,
+                                    )
+                                    val chevronRotation by animateFloatAsState(
+                                        targetValue = if (showDeletedApps) 180f else 0f,
+                                        label = "chevron",
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.KeyboardArrowDown,
+                                        contentDescription = if (showDeletedApps) "Hide deleted apps" else "Show deleted apps",
+                                        tint = colors.brass,
+                                        modifier = Modifier.rotate(chevronRotation),
+                                    )
+                                }
+                            }
+                        }
+
+                        if (showDeletedApps) {
+                            items(deletedRules, key = { it.packageName }) { rule ->
+                                RuleRow(
+                                    rule = rule,
+                                    label = rule.packageName,
+                                    icon = null,
+                                    onClick = { editingRule = rule },
+                                    onRemove = { viewModel.removeRule(rule.packageName) },
+                                    showIcon = false,
                                 )
                             }
                         }
                     }
-
-                    if (showDeletedApps) {
-                        items(deletedRules, key = { it.packageName }) { rule ->
-                            RuleRow(
-                                rule = rule,
-                                label = rule.packageName,
-                                icon = null,
-                                onClick = { editingRule = rule },
-                                onRemove = { viewModel.removeRule(rule.packageName) },
-                                showIcon = false,
-                            )
-                        }
-                    }
                 }
+                ScrollEdgeShadow(
+                    edge = ScrollEdge.BOTTOM,
+                    listState = rulesListState,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
         }
 
@@ -278,10 +328,8 @@ fun RulesScreen(
                 rule = ruleBeingEdited,
                 label = labelByPackage[ruleBeingEdited.packageName] ?: ruleBeingEdited.packageName,
                 icon = appByPackage[ruleBeingEdited.packageName]?.icon,
-                onSave = { updated ->
-                    viewModel.updateRule(updated)
-                    editingRule = null
-                },
+                usedSecondsToday = state.usageSecondsToday[ruleBeingEdited.packageName] ?: 0L,
+                onSave = viewModel::updateRule,
             )
         }
     }
@@ -306,8 +354,17 @@ private fun RuleRow(
             isYouTubeShortsRule -> "SHORTS BLOCK · ${rule.graceSeconds}S GRACE"
             else -> "FEED BLOCK · ${rule.graceSeconds}S GRACE"
         }
-        BlockMode.UNRESTRICTED -> "UNRESTRICTED"
+        BlockMode.UNRESTRICTED -> "TIME LIMITS ONLY"
     }
+    val timeLabels = buildList {
+        if (rule.mode != BlockMode.FULL_BLOCK && rule.isDailyLimitEnabled) {
+            add("${formatDuration(rule.dailyLimitMinutes)} DAILY")
+        }
+        if (rule.mode != BlockMode.FULL_BLOCK && rule.isScheduleEnabled) {
+            add("${formatClock(rule.scheduleStartMinute)}-${formatClock(rule.scheduleEndMinute)}")
+        }
+    }
+    val ruleSummary = (listOf(modeLabel) + timeLabels).joinToString(" · ")
     val modeColor = when (rule.mode) {
         BlockMode.FULL_BLOCK -> colors.rust
         BlockMode.SURFACE_BLOCK -> colors.brass
@@ -338,7 +395,7 @@ private fun RuleRow(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = modeLabel,
+                    text = ruleSummary,
                     style = MaterialTheme.typography.labelMedium,
                     color = modeColor,
                     maxLines = 1,
@@ -362,6 +419,7 @@ private fun RuleEditor(
     rule: AppRule,
     label: String,
     icon: ImageBitmap?,
+    usedSecondsToday: Long,
     onSave: (AppRule) -> Unit,
 ) {
     val colors = VaultTheme.colors
@@ -386,191 +444,515 @@ private fun RuleEditor(
     }
     val homeScrollThreshold = HOME_SCROLL_THRESHOLD_STOPS[homeScrollThresholdStepIndex.roundToInt()]
     var allowBreak by remember { mutableStateOf(rule.allowBreak) }
+    var isDailyLimitEnabled by remember { mutableStateOf(rule.isDailyLimitEnabled) }
+    var dailyLimitMinutes by remember { mutableStateOf(rule.dailyLimitMinutes) }
+    var isScheduleEnabled by remember { mutableStateOf(rule.isScheduleEnabled) }
+    var scheduleStartMinute by remember { mutableStateOf(rule.scheduleStartMinute) }
+    var scheduleEndMinute by remember { mutableStateOf(rule.scheduleEndMinute) }
+    var editingTimeField by remember { mutableStateOf<TimeField?>(null) }
 
-    Column(
+    val isInstantModeSelected = isInstantBlockRule && mode == BlockMode.SURFACE_BLOCK
+    val isNoBreakModeSelected = isChromeIncognitoRule && mode == BlockMode.SURFACE_BLOCK
+    val editedRule = rule.copy(
+        mode = mode,
+        graceSeconds = if (isInstantModeSelected) 0 else graceSeconds,
+        targetSurfaces = if (mode == BlockMode.SURFACE_BLOCK) {
+            SurfaceMatchers.defaultSurfaceIds(rule.packageName)
+        } else {
+            emptyList()
+        },
+        allowBreak = if (isNoBreakModeSelected) false else allowBreak,
+        instagramHomeScrollThresholdScreens = homeScrollThreshold,
+        isDailyLimitEnabled = isDailyLimitEnabled,
+        dailyLimitMinutes = dailyLimitMinutes,
+        isScheduleEnabled = isScheduleEnabled,
+        scheduleStartMinute = scheduleStartMinute,
+        scheduleEndMinute = scheduleEndMinute,
+    )
+    var lastSavedRule by remember { mutableStateOf(rule) }
+    val latestEditedRule by rememberUpdatedState(editedRule)
+    val latestOnSave by rememberUpdatedState(onSave)
+
+    LaunchedEffect(editedRule) {
+        if (editedRule == lastSavedRule) {
+            return@LaunchedEffect
+        }
+        delay(AUTO_SAVE_DEBOUNCE_MILLIS)
+        lastSavedRule = editedRule
+        latestOnSave(editedRule)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (latestEditedRule != lastSavedRule) {
+                latestOnSave(latestEditedRule)
+            }
+        }
+    }
+
+    val editorScrollState = rememberScrollState()
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(bottom = 32.dp),
+            .padding(bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppIcon(icon = icon, label = label, size = 40.dp)
-            Spacer(Modifier.width(12.dp))
-            Column {
+        AppIcon(icon = icon, label = label, size = 40.dp)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.headlineSmall,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = rule.packageName,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 500.dp)
+                .verticalScroll(editorScrollState)
+                .padding(horizontal = 24.dp)
+                .padding(top = 12.dp, bottom = 20.dp),
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    append("Used today ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colors.textPrimary)) {
+                        append(formatUsage(usedSecondsToday / 60))
+                    }
+                    if (isDailyLimitEnabled) {
+                        append(" of ${formatUsage(dailyLimitMinutes.toLong())}")
+                    }
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textMuted,
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "MODE",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
+            Spacer(Modifier.height(12.dp))
+            ModeOption(
+                title = "Full block",
+                detail = "The app closes the moment it opens.",
+                isSelected = mode == BlockMode.FULL_BLOCK,
+                onSelect = { mode = BlockMode.FULL_BLOCK },
+            )
+            if (supportsSurfaces) {
+                Spacer(Modifier.height(8.dp))
+                if (isChromeIncognitoRule) {
+                    ModeOption(
+                        title = "Incognito block",
+                        detail = "Chrome closes immediately the moment an Incognito tab is opened.",
+                        isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        onSelect = { mode = BlockMode.SURFACE_BLOCK },
+                    )
+                } else if (isYouTubeShortsRule) {
+                    ModeOption(
+                        title = "Shorts block",
+                        detail = "Only Shorts is blocked. The rest of YouTube is unaffected.",
+                        isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        onSelect = { mode = BlockMode.SURFACE_BLOCK },
+                    )
+                } else {
+                    ModeOption(
+                        title = "Feed block",
+                        detail = "The feed is blocked, but videos from friends are still allowed.",
+                        isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        onSelect = { mode = BlockMode.SURFACE_BLOCK },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            ModeOption(
+                title = "Time limits only",
+                detail = "The app stays open until the daily limit or schedule below kicks in.",
+                isSelected = mode == BlockMode.UNRESTRICTED,
+                onSelect = { mode = BlockMode.UNRESTRICTED },
+            )
+
+            if (mode == BlockMode.SURFACE_BLOCK && !isInstantBlockRule) {
+                Spacer(Modifier.height(12.dp))
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.textPrimary,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = rule.packageName,
+                    text = "GRACE PERIOD · ${graceSeconds}S",
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted,
                 )
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = "MODE",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textMuted,
-        )
-        Spacer(Modifier.height(12.dp))
-        ModeOption(
-            title = "Full block",
-            detail = "The app closes the moment it opens.",
-            isSelected = mode == BlockMode.FULL_BLOCK,
-            onSelect = { mode = BlockMode.FULL_BLOCK },
-        )
-        if (supportsSurfaces) {
-            Spacer(Modifier.height(8.dp))
-            if (isChromeIncognitoRule) {
-                ModeOption(
-                    title = "Incognito block",
-                    detail = "Chrome closes immediately the moment an Incognito tab is opened.",
-                    isSelected = mode == BlockMode.SURFACE_BLOCK,
-                    onSelect = { mode = BlockMode.SURFACE_BLOCK },
-                )
-            } else if (isYouTubeShortsRule) {
-                ModeOption(
-                    title = "Shorts block",
-                    detail = "Only Shorts is blocked. The rest of YouTube is unaffected.",
-                    isSelected = mode == BlockMode.SURFACE_BLOCK,
-                    onSelect = { mode = BlockMode.SURFACE_BLOCK },
-                )
-            } else {
-                ModeOption(
-                    title = "Feed block",
-                    detail = "The feed is blocked, but videos from friends are still allowed.",
-                    isSelected = mode == BlockMode.SURFACE_BLOCK,
-                    onSelect = { mode = BlockMode.SURFACE_BLOCK },
+                val sliderInteractionSource = remember { MutableInteractionSource() }
+                Slider(
+                    value = graceStepIndex,
+                    onValueChange = { graceStepIndex = it },
+                    valueRange = 0f..(GRACE_SECONDS_STOPS.size - 1).toFloat(),
+                    steps = GRACE_SECONDS_STOPS.size - 2,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    interactionSource = sliderInteractionSource,
+                    thumb = {
+                        SliderDefaults.Thumb(
+                            interactionSource = sliderInteractionSource,
+                            thumbSize = DpSize(4.dp, 20.dp),
+                            colors = SliderDefaults.colors(thumbColor = colors.brass),
+                        )
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = colors.brass,
+                        activeTrackColor = colors.brass,
+                        inactiveTrackColor = colors.surfaceRaised,
+                    ),
                 )
             }
-        }
 
-        if (mode == BlockMode.SURFACE_BLOCK && !isInstantBlockRule) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "GRACE PERIOD · ${graceSeconds}S",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted,
-            )
-            val sliderInteractionSource = remember { MutableInteractionSource() }
-            Slider(
-                value = graceStepIndex,
-                onValueChange = { graceStepIndex = it },
-                valueRange = 0f..(GRACE_SECONDS_STOPS.size - 1).toFloat(),
-                steps = GRACE_SECONDS_STOPS.size - 2,
-                modifier = Modifier.padding(horizontal = 6.dp),
-                interactionSource = sliderInteractionSource,
-                thumb = {
-                    SliderDefaults.Thumb(
-                        interactionSource = sliderInteractionSource,
-                        thumbSize = DpSize(4.dp, 20.dp),
-                        colors = SliderDefaults.colors(thumbColor = colors.brass),
-                    )
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = colors.brass,
-                    activeTrackColor = colors.brass,
-                    inactiveTrackColor = colors.surfaceRaised,
-                ),
-            )
-        }
+            if (mode == BlockMode.SURFACE_BLOCK && isInstagramRule) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "HOME SCROLL BLOCK · ${formatHomeScrollThreshold(homeScrollThreshold)}X",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textMuted,
+                )
+                val homeScrollSliderInteractionSource = remember { MutableInteractionSource() }
+                Slider(
+                    value = homeScrollThresholdStepIndex,
+                    onValueChange = { homeScrollThresholdStepIndex = it },
+                    valueRange = 0f..(HOME_SCROLL_THRESHOLD_STOPS.size - 1).toFloat(),
+                    steps = HOME_SCROLL_THRESHOLD_STOPS.size - 2,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    interactionSource = homeScrollSliderInteractionSource,
+                    thumb = {
+                        SliderDefaults.Thumb(
+                            interactionSource = homeScrollSliderInteractionSource,
+                            thumbSize = DpSize(4.dp, 20.dp),
+                            colors = SliderDefaults.colors(thumbColor = colors.brass),
+                        )
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = colors.brass,
+                        activeTrackColor = colors.brass,
+                        inactiveTrackColor = colors.surfaceRaised,
+                    ),
+                )
+            }
 
-        if (mode == BlockMode.SURFACE_BLOCK && isInstagramRule) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "HOME SCROLL BLOCK · ${formatHomeScrollThreshold(homeScrollThreshold)}X",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted,
-            )
-            val homeScrollSliderInteractionSource = remember { MutableInteractionSource() }
-            Slider(
-                value = homeScrollThresholdStepIndex,
-                onValueChange = { homeScrollThresholdStepIndex = it },
-                valueRange = 0f..(HOME_SCROLL_THRESHOLD_STOPS.size - 1).toFloat(),
-                steps = HOME_SCROLL_THRESHOLD_STOPS.size - 2,
-                modifier = Modifier.padding(horizontal = 6.dp),
-                interactionSource = homeScrollSliderInteractionSource,
-                thumb = {
-                    SliderDefaults.Thumb(
-                        interactionSource = homeScrollSliderInteractionSource,
-                        thumbSize = DpSize(4.dp, 20.dp),
-                        colors = SliderDefaults.colors(thumbColor = colors.brass),
-                    )
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = colors.brass,
-                    activeTrackColor = colors.brass,
-                    inactiveTrackColor = colors.surfaceRaised,
-                ),
-            )
-        }
-
-        val isInstantModeSelected = isInstantBlockRule && mode == BlockMode.SURFACE_BLOCK
-        val isNoBreakModeSelected = isChromeIncognitoRule && mode == BlockMode.SURFACE_BLOCK
-
-        if (!isNoBreakModeSelected) {
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "ALLOW 5-MINUTE BREAK",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.textMuted,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Once per day, this app can be temporarily unlocked from the block screen for 5 minutes. When off, it can't be unlocked at all.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textMuted,
+            if (mode != BlockMode.FULL_BLOCK) {
+                Spacer(Modifier.height(12.dp))
+                SettingSwitchRow(
+                    title = "DAILY TIME LIMIT",
+                    detail = "Block the app after using it this long today.",
+                    isChecked = isDailyLimitEnabled,
+                    onCheckedChange = { isDailyLimitEnabled = it },
+                )
+                if (isDailyLimitEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    TimeValueButton(
+                        label = "LIMIT",
+                        value = formatDuration(dailyLimitMinutes),
+                        onClick = { editingTimeField = TimeField.DAILY_LIMIT },
                     )
                 }
-                Spacer(Modifier.width(16.dp))
-                Switch(
-                    checked = allowBreak,
+
+                Spacer(Modifier.height(12.dp))
+                SettingSwitchRow(
+                    title = "SCHEDULED BLOCK",
+                    detail = "Block the app completely during these hours.",
+                    isChecked = isScheduleEnabled,
+                    onCheckedChange = { isScheduleEnabled = it },
+                )
+                if (isScheduleEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TimeValueButton(
+                            label = "FROM",
+                            value = formatClock(scheduleStartMinute),
+                            onClick = { editingTimeField = TimeField.SCHEDULE_START },
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp)
+                                .size(width = 14.dp, height = 2.dp)
+                                .clip(RoundedCornerShape(1.dp))
+                                .background(colors.textMuted),
+                        )
+                        TimeValueButton(
+                            label = "TO",
+                            value = formatClock(scheduleEndMinute),
+                            onClick = { editingTimeField = TimeField.SCHEDULE_END },
+                        )
+                    }
+                }
+            }
+
+            if (!isNoBreakModeSelected) {
+                Spacer(Modifier.height(12.dp))
+                SettingSwitchRow(
+                    title = "ALLOW 5-MINUTE BREAK",
+                    detail = "Unlock this app for 5 minutes, once a day.",
+                    isChecked = allowBreak,
                     onCheckedChange = { allowBreak = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = colors.brass,
-                        checkedTrackColor = colors.surfaceRaised,
-                    ),
                 )
             }
-        }
 
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = {
-                val targetSurfaces = if (mode == BlockMode.SURFACE_BLOCK) {
-                    SurfaceMatchers.defaultSurfaceIds(rule.packageName)
-                } else {
-                    emptyList()
-                }
-                onSave(
-                    rule.copy(
-                        mode = mode,
-                        graceSeconds = if (isInstantModeSelected) 0 else graceSeconds,
-                        targetSurfaces = targetSurfaces,
-                        allowBreak = if (isNoBreakModeSelected) false else allowBreak,
-                    ),
-                )
+        }
+        ScrollEdgeShadow(
+            edge = ScrollEdge.TOP,
+            scrollState = editorScrollState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+    }
+
+    val timeField = editingTimeField
+    if (timeField != null) {
+        val initialMinutes = when (timeField) {
+            TimeField.DAILY_LIMIT -> dailyLimitMinutes
+            TimeField.SCHEDULE_START -> scheduleStartMinute
+            TimeField.SCHEDULE_END -> scheduleEndMinute
+        }
+        TimeValueDialog(
+            title = when (timeField) {
+                TimeField.DAILY_LIMIT -> "Daily limit"
+                TimeField.SCHEDULE_START -> "Block from"
+                TimeField.SCHEDULE_END -> "Block until"
             },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.brass,
-                contentColor = colors.ink,
+            initialMinutes = initialMinutes,
+            onDismiss = { editingTimeField = null },
+            onConfirm = { minutes ->
+                when (timeField) {
+                    TimeField.DAILY_LIMIT -> dailyLimitMinutes = minutes.coerceAtLeast(1)
+                    TimeField.SCHEDULE_START -> scheduleStartMinute = minutes
+                    TimeField.SCHEDULE_END -> scheduleEndMinute = minutes
+                }
+                editingTimeField = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    detail: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val colors = VaultTheme.colors
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.brass,
+                checkedTrackColor = colors.surfaceRaised,
             ),
+        )
+    }
+}
+
+@Composable
+private fun TimeValueButton(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VaultTheme.colors
+
+    Surface(
+        onClick = onClick,
+        shape = VaultTheme.shapes.medium,
+        color = colors.surfaceRaised,
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Save rule", style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted,
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.brass,
+            )
         }
     }
+}
+
+@Composable
+private fun TimeValueDialog(
+    title: String,
+    initialMinutes: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    val colors = VaultTheme.colors
+    val clampedMinutes = initialMinutes.coerceIn(0, MINUTES_PER_DAY - 1)
+    var hoursValue by remember { mutableStateOf(twoDigitFieldValue(clampedMinutes / 60)) }
+    var minutesValue by remember { mutableStateOf(twoDigitFieldValue(clampedMinutes % 60)) }
+    val minutesFocusRequester = remember { FocusRequester() }
+
+    fun handleHoursChange(newValue: TextFieldValue) {
+        val previousText = hoursValue.text
+        val isCursorAtEnd = hoursValue.selection.collapsed && hoursValue.selection.start == previousText.length
+        val overflowDigit = newValue.text.lastOrNull()
+        val isOverflowTyping = previousText.length == 2 &&
+            isCursorAtEnd &&
+            newValue.text.length == 3 &&
+            newValue.text.startsWith(previousText) &&
+            overflowDigit?.isDigit() == true
+        if (isOverflowTyping) {
+            val digit = overflowDigit.toString()
+            minutesValue = TextFieldValue(text = digit, selection = TextRange(digit.length))
+            minutesFocusRequester.requestFocus()
+
+            return
+        }
+        hoursValue = sanitizeTimeFieldValue(newValue)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            shape = VaultTheme.shapes.large,
+            color = colors.surface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TimeNumberField(
+                        value = hoursValue,
+                        onValueChange = ::handleHoursChange,
+                        accessibilityLabel = "Hours",
+                    )
+                    Text(
+                        text = ":",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = colors.textPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                    TimeNumberField(
+                        value = minutesValue,
+                        onValueChange = { minutesValue = sanitizeTimeFieldValue(it) },
+                        accessibilityLabel = "Minutes",
+                        modifier = Modifier.focusRequester(minutesFocusRequester),
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = "Cancel", color = colors.textMuted)
+                    }
+                    TextButton(
+                        onClick = {
+                            val hours = (hoursValue.text.toIntOrNull() ?: 0).coerceIn(0, 23)
+                            val minutes = (minutesValue.text.toIntOrNull() ?: 0).coerceIn(0, 59)
+                            onConfirm(hours * 60 + minutes)
+                        },
+                    ) {
+                        Text(text = "Set", color = colors.brass)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun twoDigitFieldValue(number: Int): TextFieldValue {
+    val text = "%02d".format(number)
+
+    return TextFieldValue(text = text, selection = TextRange(text.length))
+}
+
+private fun sanitizeTimeFieldValue(value: TextFieldValue): TextFieldValue {
+    val digits = value.text.filter { it.isDigit() }.take(2)
+    if (digits == value.text) {
+        return value
+    }
+
+    return TextFieldValue(text = digits, selection = TextRange(digits.length))
+}
+
+@Composable
+private fun TimeNumberField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    accessibilityLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VaultTheme.colors
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.headlineMedium.copy(
+            color = colors.brass,
+            textAlign = TextAlign.Center,
+        ),
+        cursorBrush = SolidColor(colors.brass),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier.semantics { contentDescription = accessibilityLabel },
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .size(width = 76.dp, height = 60.dp)
+                    .clip(VaultTheme.shapes.medium)
+                    .background(colors.surfaceRaised),
+                contentAlignment = Alignment.Center,
+            ) {
+                innerTextField()
+            }
+        },
+    )
 }
 
 @Composable

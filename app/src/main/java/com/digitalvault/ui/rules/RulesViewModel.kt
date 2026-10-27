@@ -11,6 +11,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
+import com.digitalvault.core.data.AppUsageRepository
 import com.digitalvault.core.data.RulesRepository
 import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
@@ -52,6 +53,7 @@ data class RulesUiState(
     val rules: List<AppRule> = emptyList(),
     val installedApps: List<InstalledApp> = emptyList(),
     val isLoadingApps: Boolean = false,
+    val usageSecondsToday: Map<String, Long> = emptyMap(),
 )
 
 class RulesViewModel(application: Application) : AndroidViewModel(application) {
@@ -65,6 +67,11 @@ class RulesViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             rulesRepository.rules.collect { rules ->
                 uiState = uiState.copy(rules = rules)
+            }
+        }
+        viewModelScope.launch {
+            AppUsageRepository(application.vaultDataStore).usageSecondsToday.collect { usage ->
+                uiState = uiState.copy(usageSecondsToday = usage)
             }
         }
     }

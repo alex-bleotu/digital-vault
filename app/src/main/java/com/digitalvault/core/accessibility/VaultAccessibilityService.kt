@@ -9,6 +9,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -32,6 +33,7 @@ import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithTextOrHintPrefix
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithViewId
+import com.digitalvault.core.data.AppUsageRepository
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.RulesRepository
@@ -43,6 +45,8 @@ import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.lock.BlockOverlayController
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +55,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -78,6 +83,11 @@ private fun isInstagramDmReplyBarVisible(root: AccessibilityNodeInfo): Boolean =
         root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
         root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
         root.hasVisibleNodeWithTextOrHintPrefix("Message")
+private const val USAGE_TICK_MILLIS = 10_000L
+private const val USAGE_MIN_TICK_MILLIS = 250L
+private const val MILLIS_PER_DAY = 24 * 60 * 60_000L
+private const val USAGE_MAX_TICK_MILLIS = 20_000L
+private const val USAGE_PERSIST_INTERVAL_MILLIS = 60_000L
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -87,6 +97,8 @@ class VaultAccessibilityService : AccessibilityService() {
     private var overlayController: BlockOverlayController? = null
     private var vaultRepository: VaultRepository? = null
     private var breakUsageRepository: BreakUsageRepository? = null
+    private var appUsageRepository: AppUsageRepository? = null
+    private var powerManager: PowerManager? = null
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
 
@@ -98,6 +110,19 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var surfaceRules: Map<String, AppRule> = emptyMap()
+
+    @Volatile
+    private var timeRules: Map<String, AppRule> = emptyMap()
+
+    @Volatile
+    private var usageTrackedPackages: Set<String> = emptySet()
+
+    private val usageMillisByPackage = mutableMapOf<String, Long>()
+    private var usageDate: LocalDate = LocalDate.now()
+    private var usageTickerJob: Job? = null
+    private var lastUsageTickAtMillis: Long = 0L
+    private var lastUsagePersistAtMillis: Long = 0L
+    private var timeRuleForegroundPackage: String? = null
 
     @Volatile
     private var isPasswordSet: Boolean = false
@@ -198,6 +223,9 @@ class VaultAccessibilityService : AccessibilityService() {
         vaultRepository = repository
         val breakUsage = BreakUsageRepository(vaultDataStore)
         breakUsageRepository = breakUsage
+        powerManager = ContextCompat.getSystemService(this, PowerManager::class.java)
+        val appUsage = AppUsageRepository(vaultDataStore)
+        appUsageRepository = appUsage
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -236,7 +264,12 @@ class VaultAccessibilityService : AccessibilityService() {
                 surfaceRules = rules
                     .filter { it.mode == BlockMode.SURFACE_BLOCK }
                     .associateBy { it.packageName }
+                timeRules = rules
+                    .filter { it.hasTimeRestrictions }
+                    .associateBy { it.packageName }
+                usageTrackedPackages = rules.map { it.packageName }.toSet()
                 recomputeMonitoredPackages()
+                updateUsageTicker()
             }
         }
         serviceScope.launch {
@@ -254,6 +287,12 @@ class VaultAccessibilityService : AccessibilityService() {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
                 blockedDomains = config.blockedDomains
                 recomputeMonitoredPackages()
+            }
+        }
+        serviceScope.launch {
+            val saved = appUsage.secondsFor(usageDate)
+            saved.forEach { (savedPackage, seconds) ->
+                usageMillisByPackage[savedPackage] = maxOf(usageMillisByPackage[savedPackage] ?: 0L, seconds * 1_000L)
             }
         }
         serviceScope.launch {
@@ -297,6 +336,13 @@ class VaultAccessibilityService : AccessibilityService() {
                     if (isBrowserWatched) {
                         guardBrowser(packageName)
                     }
+                    val timeRule = timeRules[packageName]
+                    if (timeRule != null) {
+                        onTimeRulePackageSeen(packageName)
+                        if (enforceTimeRule(packageName, timeRule)) {
+                            return
+                        }
+                    }
                     val rule = surfaceRules[packageName]
                     when {
                         rule != null -> evaluateSurface(packageName, rule)
@@ -309,6 +355,13 @@ class VaultAccessibilityService : AccessibilityService() {
             }
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                val timeRule = timeRules[packageName]
+                if (timeRule != null) {
+                    onTimeRulePackageSeen(packageName)
+                    if (enforceTimeRule(packageName, timeRule)) {
+                        return
+                    }
+                }
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramSavedSection(it) }
                     matchedRoot(packageName)?.let { updateInstagramBackReelZone(it) }
@@ -375,6 +428,165 @@ class VaultAccessibilityService : AccessibilityService() {
         ) {
             dismissForBreak(packageName)
         }
+    }
+
+    private fun updateUsageTicker() {
+        if (usageTrackedPackages.isEmpty()) {
+            usageTickerJob?.cancel()
+            usageTickerJob = null
+
+            return
+        }
+        if (usageTickerJob?.isActive == true) {
+            return
+        }
+        lastUsageTickAtMillis = SystemClock.elapsedRealtime()
+        usageTickerJob = serviceScope.launch {
+            while (isActive) {
+                delay(nextUsageTickDelayMillis())
+                onUsageTick()
+            }
+        }
+    }
+
+    private fun onTimeRulePackageSeen(packageName: String) {
+        if (timeRuleForegroundPackage == packageName) {
+            return
+        }
+        timeRuleForegroundPackage = packageName
+        usageTickerJob?.cancel()
+        usageTickerJob = null
+        updateUsageTicker()
+    }
+
+    private fun nextUsageTickDelayMillis(): Long {
+        val packageName = timeRuleForegroundPackage ?: return USAGE_TICK_MILLIS
+        val rule = timeRules[packageName] ?: return USAGE_TICK_MILLIS
+        var delayMillis = USAGE_TICK_MILLIS
+        if (rule.isDailyLimitEnabled) {
+            val remainingMillis = rule.dailyLimitMinutes * 60_000L - (usageMillisByPackage[packageName] ?: 0L)
+            if (remainingMillis > 0) {
+                delayMillis = minOf(delayMillis, remainingMillis)
+            }
+        }
+        if (rule.isScheduleEnabled) {
+            delayMillis = minOf(delayMillis, millisUntilMinuteOfDay(rule.scheduleStartMinute))
+        }
+        allowedUntil[packageName]?.let { until ->
+            val remainingBreakMillis = until - System.currentTimeMillis()
+            if (remainingBreakMillis > 0) {
+                delayMillis = minOf(delayMillis, remainingBreakMillis)
+            }
+        }
+
+        return delayMillis.coerceAtLeast(USAGE_MIN_TICK_MILLIS)
+    }
+
+    private fun millisUntilMinuteOfDay(minuteOfDay: Int): Long {
+        val nowMillisOfDay = LocalTime.now().toNanoOfDay() / 1_000_000L
+        val difference = Math.floorMod(minuteOfDay * 60_000L - nowMillisOfDay, MILLIS_PER_DAY)
+
+        return if (difference == 0L) MILLIS_PER_DAY else difference
+    }
+
+    private fun onUsageTick() {
+        val now = SystemClock.elapsedRealtime()
+        val elapsedMillis = (now - lastUsageTickAtMillis).coerceIn(0L, USAGE_MAX_TICK_MILLIS)
+        lastUsageTickAtMillis = now
+        rollUsageDateIfNeeded()
+        if (powerManager?.isInteractive != true) {
+            return
+        }
+        if (overlayController?.isShowing == true) {
+            return
+        }
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString() ?: return
+        if (foregroundPackage in usageTrackedPackages) {
+            usageMillisByPackage[foregroundPackage] = (usageMillisByPackage[foregroundPackage] ?: 0L) + elapsedMillis
+        }
+        val rule = timeRules[foregroundPackage]
+        val shouldPersist = now - lastUsagePersistAtMillis >= USAGE_PERSIST_INTERVAL_MILLIS ||
+            (rule != null && isDailyLimitReached(rule))
+        if (shouldPersist) {
+            persistUsage()
+        }
+        if (rule == null) {
+            timeRuleForegroundPackage = null
+
+            return
+        }
+        timeRuleForegroundPackage = foregroundPackage
+        enforceTimeRule(foregroundPackage, rule)
+    }
+
+    private fun rollUsageDateIfNeeded() {
+        val today = LocalDate.now()
+        if (today == usageDate) {
+            return
+        }
+        usageDate = today
+        usageMillisByPackage.clear()
+        persistUsage()
+    }
+
+    private fun persistUsage() {
+        lastUsagePersistAtMillis = SystemClock.elapsedRealtime()
+        val repository = appUsageRepository ?: return
+        val date = usageDate
+        val snapshot = usageMillisByPackage.mapValues { (_, millis) -> millis / 1_000L }
+        serviceScope.launch {
+            repository.save(date, snapshot)
+        }
+    }
+
+    private fun isDailyLimitReached(rule: AppRule): Boolean =
+        rule.isDailyLimitEnabled &&
+            (usageMillisByPackage[rule.packageName] ?: 0L) >= rule.dailyLimitMinutes * 60_000L
+
+    private fun timeRestrictionReason(rule: AppRule): String? {
+        val now = LocalTime.now()
+        if (rule.isScheduleActiveAt(now.hour * 60 + now.minute)) {
+            return "Locked until ${formatClock(rule.scheduleEndMinute)}."
+        }
+        if (isDailyLimitReached(rule)) {
+            return "Daily limit of ${formatDuration(rule.dailyLimitMinutes)} reached."
+        }
+
+        return null
+    }
+
+    private fun formatClock(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+
+    private fun formatDuration(minutes: Int): String = "%d:%02d".format(minutes / 60, minutes % 60)
+
+    private fun enforceTimeRule(packageName: String, rule: AppRule): Boolean {
+        val reason = timeRestrictionReason(rule) ?: return false
+        if (isTemporarilyAllowed(packageName)) {
+            return false
+        }
+        if (overlayController?.isShowing == true) {
+            return true
+        }
+        if (activeBlockedPackage == packageName) {
+            return true
+        }
+        if (isWithinSelfTriggeredHomeGuard()) {
+            return true
+        }
+        activeBlockedPackage = packageName
+        goHome(packageName)
+        val usedToday = hasUsedBreakToday(packageName)
+        showTimeoutWall(
+            loadAppLabel(packageName),
+            loadAppIcon(packageName),
+            allowBreak = rule.allowBreak && !usedToday,
+            breakUsedToday = rule.allowBreak && usedToday,
+            lockReason = reason,
+        ) {
+            dismissForBreak(packageName)
+        }
+
+        return true
     }
 
     private fun guardBrowser(packageName: String) {
@@ -948,6 +1160,7 @@ class VaultAccessibilityService : AccessibilityService() {
         allowBreak: Boolean,
         breakUsedToday: Boolean,
         isDomainBlock: Boolean = false,
+        lockReason: String? = null,
         onDismissForBreak: () -> Unit,
     ) {
         overlayController?.showTimeoutWall(
@@ -958,6 +1171,7 @@ class VaultAccessibilityService : AccessibilityService() {
             allowBreak = allowBreak,
             breakUsedToday = breakUsedToday,
             isDomainBlock = isDomainBlock,
+            lockReason = lockReason,
             onDismissForBreak = onDismissForBreak,
             onExit = ::exitToHome,
         )
@@ -1047,6 +1261,7 @@ class VaultAccessibilityService : AccessibilityService() {
         val monitored = buildSet {
             addAll(fullBlockRules.keys)
             addAll(surfaceRules.keys)
+            addAll(timeRules.keys)
             if (isPasswordSet) {
                 addAll(SettingsGuard.watchedPackages)
             }

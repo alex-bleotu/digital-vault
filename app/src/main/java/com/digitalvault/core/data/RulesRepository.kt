@@ -49,6 +49,11 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
             rule.targetSurfaces.joinToString(","),
             rule.allowBreak.toString(),
             rule.instagramHomeScrollThresholdScreens.toString(),
+            rule.isDailyLimitEnabled.toString(),
+            rule.dailyLimitMinutes.toString(),
+            rule.isScheduleEnabled.toString(),
+            rule.scheduleStartMinute.toString(),
+            rule.scheduleEndMinute.toString(),
         ).joinToString("|")
 
     private fun decode(raw: String): AppRule? {
@@ -61,6 +66,7 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
         val targetSurfaces = if (parts[3].isEmpty()) emptyList() else parts[3].split(",")
         val allowBreak = parts.getOrNull(4)?.toBooleanStrictOrNull() ?: true
         val instagramHomeScrollThresholdScreens = parts.getOrNull(5)?.toFloatOrNull() ?: 0.5f
+        val defaults = AppRule(packageName = parts[0], mode = mode)
 
         return AppRule(
             packageName = parts[0],
@@ -69,6 +75,11 @@ class RulesRepository(private val dataStore: DataStore<Preferences>) {
             targetSurfaces = targetSurfaces,
             allowBreak = allowBreak,
             instagramHomeScrollThresholdScreens = instagramHomeScrollThresholdScreens,
+            isDailyLimitEnabled = parts.getOrNull(6)?.toBooleanStrictOrNull() ?: defaults.isDailyLimitEnabled,
+            dailyLimitMinutes = parts.getOrNull(7)?.toIntOrNull() ?: defaults.dailyLimitMinutes,
+            isScheduleEnabled = parts.getOrNull(8)?.toBooleanStrictOrNull() ?: defaults.isScheduleEnabled,
+            scheduleStartMinute = parts.getOrNull(9)?.toIntOrNull() ?: defaults.scheduleStartMinute,
+            scheduleEndMinute = parts.getOrNull(10)?.toIntOrNull() ?: defaults.scheduleEndMinute,
         )
     }
 }
