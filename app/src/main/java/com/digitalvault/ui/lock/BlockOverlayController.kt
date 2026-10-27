@@ -79,7 +79,7 @@ class BlockOverlayController(private val context: Context) {
     fun hide() {
         val manager = windowManager ?: return
         overlayView?.let { view ->
-            runCatching { manager.removeView(view) }
+            runCatching { manager.removeViewImmediate(view) }
         }
         lifecycleOwner?.onDestroy()
         overlayView = null

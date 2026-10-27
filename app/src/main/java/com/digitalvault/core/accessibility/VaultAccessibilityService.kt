@@ -59,6 +59,7 @@ private const val HOLD_MILLIS = 1600
 private const val ICON_SIZE_PX = 144
 private const val SETTINGS_UNLOCK_SECONDS = 60L
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
+private const val SELF_TRIGGERED_HOME_BROADCAST_WINDOW_MILLIS = 5_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
 private const val FAST_TRIGGER_SETTLE_MILLIS = 400L
 private const val HOME_TAB_TAP_GUARD_MILLIS = 1_500L
@@ -175,6 +176,9 @@ class VaultAccessibilityService : AccessibilityService() {
     @Volatile
     private var selfTriggeredHomeAtMillis: Long = 0L
 
+    @Volatile
+    private var isAwaitingSelfTriggeredHomeBroadcast: Boolean = false
+
     private class SurfaceEntry {
         var isInTarget: Boolean = false
         var enteredTargetAtMillis: Long = 0L
@@ -196,7 +200,15 @@ class VaultAccessibilityService : AccessibilityService() {
             override fun onReceive(context: Context, intent: Intent) {
                 val sinceSelfTriggeredHome = System.currentTimeMillis() - selfTriggeredHomeAtMillis
                 if (sinceSelfTriggeredHome < SELF_TRIGGERED_HOME_GUARD_MILLIS) {
+                    isAwaitingSelfTriggeredHomeBroadcast = false
+
                     return
+                }
+                if (isAwaitingSelfTriggeredHomeBroadcast) {
+                    isAwaitingSelfTriggeredHomeBroadcast = false
+                    if (sinceSelfTriggeredHome < SELF_TRIGGERED_HOME_BROADCAST_WINDOW_MILLIS) {
+                        return
+                    }
                 }
                 if (overlayController?.isShowing == true) {
                     activeBlockedPackage = null
@@ -851,6 +863,7 @@ class VaultAccessibilityService : AccessibilityService() {
 
     private fun goHome(packageName: String) {
         selfTriggeredHomeAtMillis = System.currentTimeMillis()
+        isAwaitingSelfTriggeredHomeBroadcast = true
         performGlobalAction(GLOBAL_ACTION_HOME)
         if (packageName in AUDIO_STOP_PACKAGES) {
             requestAudioFocus()
