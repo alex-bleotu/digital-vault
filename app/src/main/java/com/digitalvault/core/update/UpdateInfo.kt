@@ -4,4 +4,5 @@ data class UpdateInfo(
     val versionCode: Int,
     val versionTag: String,
     val apkDownloadUrl: String,
+    val apkSizeBytes: Long,
 )

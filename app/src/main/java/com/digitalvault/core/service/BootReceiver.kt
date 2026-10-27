@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.VpnService
 import com.digitalvault.core.data.DnsRepository
 import com.digitalvault.core.data.vaultDataStore
+import com.digitalvault.core.update.UpdateInstaller
 import com.digitalvault.core.vpn.VaultVpnService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,9 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             VaultNotifications.ensureChannels(context)
             WatchdogWorker.schedule(context)
+            if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+                UpdateInstaller.deleteDownloadsExcept(context, keep = null)
+            }
 
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {

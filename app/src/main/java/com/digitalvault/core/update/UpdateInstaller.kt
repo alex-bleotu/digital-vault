@@ -12,16 +12,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val TIMEOUT_MILLIS = 15_000
+private const val UPDATES_DIRECTORY_NAME = "updates"
+private const val PARTIAL_DOWNLOAD_SUFFIX = ".part"
 
 object UpdateInstaller {
 
-    suspend fun downloadApk(context: Context, apkDownloadUrl: String): File? = withContext(Dispatchers.IO) {
+    suspend fun downloadApk(context: Context, info: UpdateInfo): File? = withContext(Dispatchers.IO) {
         runCatching {
-            val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
-            updatesDir.listFiles()?.forEach { it.delete() }
-            val outFile = File(updatesDir, "digital-vault-update.apk")
+            val apkFile = apkFileFor(context, info)
+            deleteDownloadsExcept(context, keep = null)
+            apkFile.parentFile?.mkdirs()
+            val partialFile = File(apkFile.parentFile, apkFile.name + PARTIAL_DOWNLOAD_SUFFIX)
 
-            val connection = URL(apkDownloadUrl).openConnection() as HttpURLConnection
+            val connection = URL(info.apkDownloadUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = TIMEOUT_MILLIS
             connection.readTimeout = TIMEOUT_MILLIS
 
@@ -32,12 +35,29 @@ object UpdateInstaller {
             }
 
             connection.inputStream.use { input ->
-                outFile.outputStream().use { output -> input.copyTo(output) }
+                partialFile.outputStream().use { output -> input.copyTo(output) }
             }
             connection.disconnect()
 
-            outFile
+            if (!isCompleteDownload(partialFile, info) || !partialFile.renameTo(apkFile)) {
+                partialFile.delete()
+
+                return@withContext null
+            }
+
+            apkFile
         }.getOrNull()
+    }
+
+    fun findDownloadedApk(context: Context, info: UpdateInfo): File? =
+        apkFileFor(context, info).takeIf { it.isFile && isCompleteDownload(it, info) }
+
+    fun deleteDownloadsExcept(context: Context, keep: File?) {
+        updatesDirectory(context).listFiles()?.forEach { file ->
+            if (file != keep) {
+                file.deleteRecursively()
+            }
+        }
     }
 
     fun canInstallPackages(context: Context): Boolean =
@@ -58,4 +78,12 @@ object UpdateInstaller {
         }
         context.startActivity(intent)
     }
+
+    private fun updatesDirectory(context: Context): File = File(context.cacheDir, UPDATES_DIRECTORY_NAME)
+
+    private fun apkFileFor(context: Context, info: UpdateInfo): File =
+        File(updatesDirectory(context), "digital-vault-${info.versionCode}.apk")
+
+    private fun isCompleteDownload(file: File, info: UpdateInfo): Boolean =
+        file.length() > 0 && (info.apkSizeBytes <= 0 || file.length() == info.apkSizeBytes)
 }

@@ -11,7 +11,9 @@ import com.digitalvault.BuildConfig
 import com.digitalvault.core.update.UpdateChecker
 import com.digitalvault.core.update.UpdateInfo
 import com.digitalvault.core.update.UpdateInstaller
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class UpdateStatus { IDLE, DOWNLOADING, FAILED }
 
@@ -23,9 +25,20 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     var status by mutableStateOf(UpdateStatus.IDLE)
         private set
 
+    var isDownloaded by mutableStateOf(false)
+        private set
+
     init {
         viewModelScope.launch {
-            updateInfo = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
+            val context = getApplication<Application>()
+            val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
+            val downloadedApk = withContext(Dispatchers.IO) {
+                val apk = info?.let { UpdateInstaller.findDownloadedApk(context, it) }
+                UpdateInstaller.deleteDownloadsExcept(context, keep = apk)
+                apk
+            }
+            isDownloaded = downloadedApk != null
+            updateInfo = info
         }
     }
 
@@ -37,14 +50,18 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         val info = updateInfo ?: return
         val context = getApplication<Application>()
         viewModelScope.launch {
-            status = UpdateStatus.DOWNLOADING
-            val file = UpdateInstaller.downloadApk(context, info.apkDownloadUrl)
+            val downloadedApk = withContext(Dispatchers.IO) { UpdateInstaller.findDownloadedApk(context, info) }
+            if (downloadedApk == null) {
+                status = UpdateStatus.DOWNLOADING
+            }
+            val file = downloadedApk ?: UpdateInstaller.downloadApk(context, info)
             if (file == null) {
                 status = UpdateStatus.FAILED
 
                 return@launch
             }
             status = UpdateStatus.IDLE
+            isDownloaded = true
             if (UpdateInstaller.canInstallPackages(context)) {
                 UpdateInstaller.installApk(context, file)
             } else {

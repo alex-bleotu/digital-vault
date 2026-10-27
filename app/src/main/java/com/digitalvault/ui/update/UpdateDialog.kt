@@ -34,7 +34,11 @@ fun UpdateDialog(viewModel: UpdateViewModel = viewModel()) {
         text = {
             Column {
                 Text(
-                    text = "Digital Vault ${info.versionTag} is ready to install.",
+                    text = if (viewModel.isDownloaded) {
+                        "Digital Vault ${info.versionTag} is downloaded and ready to install."
+                    } else {
+                        "Digital Vault ${info.versionTag} is ready to install."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textMuted,
                 )
@@ -65,7 +69,7 @@ fun UpdateDialog(viewModel: UpdateViewModel = viewModel()) {
                 onClick = viewModel::downloadAndInstall,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
             ) {
-                Text(text = "Update")
+                Text(text = if (viewModel.isDownloaded) "Install" else "Update")
             }
         },
         dismissButton = {

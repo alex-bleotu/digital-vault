@@ -38,17 +38,24 @@ object UpdateChecker {
 
             val assets = json.optJSONArray("assets") ?: return@withContext null
             var apkDownloadUrl: String? = null
+            var apkSizeBytes = 0L
             for (index in 0 until assets.length()) {
                 val asset = assets.getJSONObject(index)
                 if (asset.optString("name").endsWith(".apk")) {
                     apkDownloadUrl = asset.optString("browser_download_url")
+                    apkSizeBytes = asset.optLong("size")
                     break
                 }
             }
 
             val downloadUrl = apkDownloadUrl ?: return@withContext null
 
-            UpdateInfo(versionCode = versionCode, versionTag = tagName, apkDownloadUrl = downloadUrl)
+            UpdateInfo(
+                versionCode = versionCode,
+                versionTag = tagName,
+                apkDownloadUrl = downloadUrl,
+                apkSizeBytes = apkSizeBytes,
+            )
         }.getOrNull()
     }
 }
