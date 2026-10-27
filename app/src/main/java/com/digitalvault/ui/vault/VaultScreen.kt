@@ -1,26 +1,13 @@
 package com.digitalvault.ui.vault
 
-import android.Manifest
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -35,8 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -44,8 +29,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitalvault.BuildConfig
+import com.digitalvault.ui.components.PermissionHealth
+import com.digitalvault.ui.components.PermissionHealthRows
 import com.digitalvault.ui.lock.LockScreen
 import com.digitalvault.ui.theme.VaultTheme
+import com.digitalvault.ui.components.ScrollEdgeShadow
+import com.digitalvault.ui.components.ScrollEdge
+import androidx.compose.foundation.layout.Box
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -58,7 +48,6 @@ fun VaultScreen(
     viewModel: VaultViewModel = viewModel(),
 ) {
     val colors = VaultTheme.colors
-    val context = LocalContext.current
     val state = viewModel.uiState
     val lifecycleOwner = LocalLifecycleOwner.current
     var isChangingPasscode by remember { mutableStateOf(false) }
@@ -99,127 +88,107 @@ fun VaultScreen(
         return
     }
 
-    val notificationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.refreshLiveChecks() }
+    val screenScrollState = rememberScrollState()
 
-    fun launch(intent: Intent) {
-        try {
-            context.startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-        }
-    }
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ink)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 24.dp),
+            .background(colors.ink),
     ) {
-        Text(
-            text = "Vault",
-            style = MaterialTheme.typography.headlineMedium,
-            color = colors.textPrimary,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "SECURITY · HEALTH · RECOVERY",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textMuted,
-        )
-
-        Spacer(Modifier.height(24.dp))
-        SectionCard(title = "PERMISSION HEALTH") {
-            HealthRow(
-                label = "Accessibility engine",
-                isHealthy = state.isAccessibilityLive,
-                onFix = { launch(viewModel.permissions.accessibilityIntent()) },
-            )
-            HealthRow(
-                label = "Block screen overlay",
-                isHealthy = state.isOverlayLive,
-                onFix = { launch(viewModel.permissions.overlayIntent()) },
-            )
-            HealthRow(
-                label = "Uninstall lock",
-                isHealthy = state.isAdminLive,
-                onFix = { launch(viewModel.permissions.deviceAdminIntent("Digital Vault asks for your passcode before it can be removed.")) },
-            )
-            HealthRow(
-                label = "Battery exemption",
-                isHealthy = state.isBatteryLive,
-                onFix = { launch(viewModel.permissions.batteryIntent()) },
-            )
-            HealthRow(
-                label = "Notifications",
-                isHealthy = state.areNotificationsEnabled,
-                onFix = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        launch(viewModel.permissions.appSettingsIntent())
-                    }
-                },
-            )
-            Spacer(Modifier.height(8.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(screenScrollState)
+                .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 28.dp),
+        ) {
             Text(
-                text = state.lastCheckedAt?.let {
-                    "LAST WATCHDOG CHECK · ${CheckFormatter.format(it.atZone(ZoneId.systemDefault())).uppercase()}"
-                } ?: "WATCHDOG CHECK PENDING",
+                text = "Vault",
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "SECURITY · HEALTH · RECOVERY",
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textMuted,
             )
-        }
 
-        Spacer(Modifier.height(16.dp))
-        SectionCard(title = "PASSCODE") {
+            Spacer(Modifier.height(24.dp))
+            SectionCard(title = "PERMISSION HEALTH") {
+                PermissionHealthRows(
+                    health = PermissionHealth(
+                        isAccessibilityLive = state.isAccessibilityLive,
+                        isOverlayLive = state.isOverlayLive,
+                        isAdminLive = state.isAdminLive,
+                        isBatteryLive = state.isBatteryLive,
+                        areNotificationsEnabled = state.areNotificationsEnabled,
+                    ),
+                    onPermissionResult = viewModel::refreshLiveChecks,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = state.lastCheckedAt?.let {
+                        "LAST CHECK · ${CheckFormatter.format(it.atZone(ZoneId.systemDefault())).uppercase()}"
+                    } ?: "CHECK PENDING",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textMuted,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            SectionCard(title = "PASSCODE") {
+                Text(
+                    text = "Gates the Rules, Shield and Vault screens, protected system settings, and uninstalling.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textMuted,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { isChangingPasscode = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
+                ) {
+                    Text("Change passcode")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { isRecoveringPasscode = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textMuted),
+                ) {
+                    Text("Forgot passcode?")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            SectionCard(title = "DANGER ZONE") {
+                val standDownActive = state.standDownUntil?.isAfter(Instant.now()) == true
+
+                Text(
+                    text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Shield enforcement.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textMuted,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { if (standDownActive) viewModel.armGuard() else viewModel.standDown() },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.rust),
+                ) {
+                    Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
             Text(
-                text = "Gates the Rules, Shield and Vault screens, protected system settings, and uninstalling.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "VERSION ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.labelMedium,
                 color = colors.textMuted,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = { isChangingPasscode = true },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
-            ) {
-                Text("Change passcode")
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { isRecoveringPasscode = true },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textMuted),
-            ) {
-                Text("Forgot passcode?")
-            }
         }
-
-        Spacer(Modifier.height(16.dp))
-        SectionCard(title = "DANGER ZONE") {
-            val standDownActive = state.standDownUntil?.isAfter(Instant.now()) == true
-
-            Text(
-                text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Shield enforcement.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textMuted,
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = { if (standDownActive) viewModel.armGuard() else viewModel.standDown() },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.rust),
-            ) {
-                Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = "VERSION ${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textMuted,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
+        ScrollEdgeShadow(
+            edge = ScrollEdge.BOTTOM,
+            scrollState = screenScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
@@ -244,45 +213,6 @@ private fun SectionCard(
             )
             Spacer(Modifier.height(12.dp))
             content()
-        }
-    }
-}
-
-@Composable
-private fun HealthRow(
-    label: String,
-    isHealthy: Boolean,
-    onFix: () -> Unit,
-) {
-    val colors = VaultTheme.colors
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (isHealthy) colors.sage else colors.rust),
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textPrimary,
-            )
-        }
-        if (!isHealthy) {
-            Text(
-                text = "Fix",
-                color = colors.brass,
-                modifier = Modifier.clickable(onClick = onFix),
-            )
         }
     }
 }

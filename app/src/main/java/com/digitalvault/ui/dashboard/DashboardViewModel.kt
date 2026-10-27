@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.digitalvault.core.data.DnsRepository
@@ -28,6 +29,7 @@ data class DashboardUiState(
     val isOverlayLive: Boolean = false,
     val isAdminLive: Boolean = false,
     val isBatteryLive: Boolean = false,
+    val areNotificationsEnabled: Boolean = true,
     val lastCheckedAt: Instant? = null,
     val standDownUntil: Instant? = null,
 ) {
@@ -76,6 +78,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     isOverlayLive = uiState.isOverlayLive,
                     isAdminLive = uiState.isAdminLive,
                     isBatteryLive = uiState.isBatteryLive,
+                    areNotificationsEnabled = uiState.areNotificationsEnabled,
                 )
                 refreshLiveChecks()
             }
@@ -95,6 +98,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             isOverlayLive = permissions.isOverlayGranted(),
             isAdminLive = permissions.isDeviceAdminActive(),
             isBatteryLive = permissions.isBatteryExempted(),
+            areNotificationsEnabled = NotificationManagerCompat.from(getApplication<Application>()).areNotificationsEnabled(),
         )
     }
 }

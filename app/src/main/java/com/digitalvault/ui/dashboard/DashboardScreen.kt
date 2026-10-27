@@ -6,13 +6,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -38,11 +39,23 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.digitalvault.ui.components.PermissionHealth
+import com.digitalvault.ui.components.ScrollEdge
+import com.digitalvault.ui.components.ScrollEdgeShadow
+import com.digitalvault.ui.components.PermissionHealthRows
 import com.digitalvault.ui.navigation.VaultDestination
 import com.digitalvault.ui.theme.VaultTheme
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +67,10 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
+
+private val HEADER_BLUR_RADIUS = 20.dp
+private val HEADER_FADE_HEIGHT = 16.dp
+private const val HEADER_TINT_ALPHA = 0.7f
 
 private val LastCheckedFormatter = DateTimeFormatter.ofPattern("HH:mm · d MMM")
 
@@ -88,17 +105,167 @@ fun DashboardScreen(
         }
     }
 
+    val hazeState = rememberHazeState()
+    val density = LocalDensity.current
+    var headerHeight by remember { mutableStateOf(0.dp) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ink)
-            .statusBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 24.dp),
+            .background(colors.ink),
     ) {
+        val dashboardScrollState = rememberScrollState()
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(hazeState),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(dashboardScrollState)
+                    .heightIn(min = maxHeight)
+                    .padding(start = 24.dp, top = headerHeight, end = 24.dp, bottom = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                MasterDial(
+                    fraction = state.protectionFraction,
+                    activeCount = state.activeCount,
+                    totalCount = state.totalCount,
+                    isStoodDown = state.isStoodDown,
+                )
+
+                val health = PermissionHealth(
+                    isAccessibilityLive = state.isAccessibilityLive,
+                    isOverlayLive = state.isOverlayLive,
+                    isAdminLive = state.isAdminLive,
+                    isBatteryLive = state.isBatteryLive,
+                    areNotificationsEnabled = state.areNotificationsEnabled,
+                )
+                if (health.hasIssues) {
+                    Spacer(Modifier.height(24.dp))
+                    Surface(
+                        shape = VaultTheme.shapes.medium,
+                        color = colors.surface,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                            Text(
+                                text = "NEEDS ATTENTION",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.rust,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            PermissionHealthRows(
+                                health = health,
+                                onPermissionResult = viewModel::refreshLiveChecks,
+                                showHealthy = false,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ModuleCard(
+                        title = "Reels & Apps",
+                        status = if (state.surfaceBlockCount + state.fullBlockCount > 0) {
+                            "${state.surfaceBlockCount + state.fullBlockCount} armed"
+                        } else {
+                            "Not configured"
+                        },
+                        isActive = state.surfaceBlockCount + state.fullBlockCount > 0,
+                        onClick = { onNavigate(VaultDestination.RULES) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModuleCard(
+                        title = "Shield",
+                        status = if (state.blockedDomainCount > 0) {
+                            "${state.blockedDomainCount} ${if (state.blockedDomainCount == 1) "domain" else "domains"}"
+                        } else {
+                            "Not configured"
+                        },
+                        isActive = state.blockedDomainCount > 0,
+                        onClick = { onNavigate(VaultDestination.SHIELD) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ModuleCard(
+                        title = "VPN",
+                        status = if (state.isVpnBlockingEnabled) "Active" else "Inactive",
+                        isActive = state.isVpnBlockingEnabled,
+                        onClick = {
+                            if (state.isVpnBlockingEnabled) {
+                                showRestartVpnDialog = true
+                            } else {
+                                onNavigate(VaultDestination.SHIELD)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModuleCard(
+                        title = "Vault",
+                        status = when {
+                            state.isPasswordSet && state.isAdminLive -> "Sealed"
+                            state.isPasswordSet -> "Passcode set"
+                            else -> "Open"
+                        },
+                        isActive = state.isPasswordSet && state.isAdminLive,
+                        onClick = { onNavigate(VaultDestination.VAULT) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    text = state.lastCheckedAt?.let { "LAST HEALTH CHECK · ${formatChecked(it)}" }
+                        ?: "HEALTH CHECK PENDING",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            ScrollEdgeShadow(
+                edge = ScrollEdge.BOTTOM,
+                scrollState = dashboardScrollState,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+
         Column(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .onSizeChanged { size -> headerHeight = with(density) { size.height.toDp() } }
+                .hazeEffect(
+                    state = hazeState,
+                    style = HazeStyle(
+                        backgroundColor = colors.ink,
+                        tints = listOf(HazeTint(colors.ink.copy(alpha = HEADER_TINT_ALPHA))),
+                        blurRadius = HEADER_BLUR_RADIUS,
+                        noiseFactor = 0f,
+                    ),
+                ) {
+                    val headerHeightPx = with(density) { headerHeight.toPx() }
+                    val fadeHeightPx = with(density) { HEADER_FADE_HEIGHT.toPx() }
+                    progressive = HazeProgressive.verticalGradient(
+                        startY = (headerHeightPx - fadeHeightPx).coerceAtLeast(0f),
+                        startIntensity = 1f,
+                        endY = headerHeightPx,
+                        endIntensity = 0f,
+                    )
+                }
+                .statusBarsPadding()
+                .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = HEADER_FADE_HEIGHT),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -123,91 +290,6 @@ fun DashboardScreen(
                     state.activeCount == state.totalCount -> colors.brass
                     else -> colors.textMuted
                 },
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth()
-                .offset(y = 32.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            MasterDial(
-                fraction = state.protectionFraction,
-                activeCount = state.activeCount,
-                totalCount = state.totalCount,
-                isStoodDown = state.isStoodDown,
-            )
-
-            Spacer(Modifier.height(32.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ModuleCard(
-                    title = "Reels & Apps",
-                    status = if (state.surfaceBlockCount + state.fullBlockCount > 0) {
-                        "${state.surfaceBlockCount + state.fullBlockCount} armed"
-                    } else {
-                        "Not configured"
-                    },
-                    isActive = state.surfaceBlockCount + state.fullBlockCount > 0,
-                    onClick = { onNavigate(VaultDestination.RULES) },
-                    modifier = Modifier.weight(1f),
-                )
-                ModuleCard(
-                    title = "Shield",
-                    status = if (state.blockedDomainCount > 0) {
-                        "${state.blockedDomainCount} domains"
-                    } else {
-                        "Not configured"
-                    },
-                    isActive = state.blockedDomainCount > 0,
-                    onClick = { onNavigate(VaultDestination.SHIELD) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ModuleCard(
-                    title = "VPN",
-                    status = if (state.isVpnBlockingEnabled) "Active" else "Inactive",
-                    isActive = state.isVpnBlockingEnabled,
-                    onClick = {
-                        if (state.isVpnBlockingEnabled) {
-                            showRestartVpnDialog = true
-                        } else {
-                            onNavigate(VaultDestination.SHIELD)
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                ModuleCard(
-                    title = "Vault",
-                    status = when {
-                        state.isPasswordSet && state.isAdminLive -> "Sealed"
-                        state.isPasswordSet -> "Passcode set"
-                        else -> "Open"
-                    },
-                    isActive = state.isPasswordSet && state.isAdminLive,
-                    onClick = { onNavigate(VaultDestination.VAULT) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(28.dp))
-            Text(
-                text = state.lastCheckedAt?.let { "LAST HEALTH CHECK · ${formatChecked(it)}" }
-                    ?: "HEALTH CHECK PENDING",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted,
-                textAlign = TextAlign.Center,
             )
         }
 
