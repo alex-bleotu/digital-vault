@@ -13,16 +13,19 @@ interface SurfaceMatcher {
 fun ScreenNode.findVisibleNodesByText(text: String): List<ScreenNode> =
     findNodesByText(text).filter { it.isVisibleToUser }
 
-fun ScreenNode.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Boolean {
+fun ScreenNode.hasVisibleNodeWithTextOrHintPrefix(prefix: String): Boolean =
+    hasVisibleNodeWithTextOrHintMatching { it.startsWith(prefix) }
+
+fun ScreenNode.hasVisibleNodeWithTextOrHintMatching(predicate: (String) -> Boolean): Boolean {
     if (isVisibleToUser) {
         val text = text?.toString()
         val hint = hintText?.toString()
-        if ((text != null && text.startsWith(prefix)) || (hint != null && hint.startsWith(prefix))) {
+        if ((text != null && predicate(text)) || (hint != null && predicate(hint))) {
             return true
         }
     }
     for (index in 0 until childCount) {
-        if (getChild(index)?.hasVisibleNodeWithTextOrHintPrefix(prefix) == true) {
+        if (getChild(index)?.hasVisibleNodeWithTextOrHintMatching(predicate) == true) {
             return true
         }
     }

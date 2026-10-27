@@ -30,6 +30,7 @@ import com.digitalvault.core.accessibility.matcher.anyVisibleDescendantDescripti
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
+import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithTextOrHintMatching
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithTextOrHintPrefix
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithViewId
 import com.digitalvault.core.data.AppUsageRepository
@@ -82,7 +83,7 @@ private fun isInstagramDmReplyBarVisible(root: ScreenNode): Boolean =
     root.hasVisibleNodeWithTextOrHintPrefix("Reply to") ||
         root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
         root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
-        root.hasVisibleNodeWithTextOrHintPrefix("Message")
+        root.hasVisibleNodeWithTextOrHintMatching { it.startsWith("Message") && !it.startsWith("Messages") }
 private const val USAGE_TICK_MILLIS = 10_000L
 private const val USAGE_MIN_TICK_MILLIS = 250L
 private const val MILLIS_PER_DAY = 24 * 60 * 60_000L
