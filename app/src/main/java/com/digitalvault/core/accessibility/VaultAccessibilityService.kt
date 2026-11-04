@@ -887,33 +887,29 @@ class VaultAccessibilityService : AccessibilityService() {
 
             return
         }
-        if (InstagramZoneGuard.isHomeFeed(root)) {
+        val isHomeFeedTop = InstagramZoneGuard.isHomeFeed(root)
+        if (isHomeFeedTop || (InstagramZoneGuard.isHomeFeedShowing(root) && !isInstagramGridScreen(root))) {
             isInstagramHomeFeed = true
             isInstagramStoryViewersSheetOpen = false
-            instagramHomeScrollPositionPx = 0
-            isInstagramHomeScrollAboveThreshold = false
-            instagramHomeScrollLastTriggerPositionPx = 0
-
-            return
-        }
-        val hasMainTabBar = root.hasVisibleNodeWithExactText("Home") && root.hasVisibleNodeWithExactText("Profile")
-        val isImmersiveReelViewer = !hasMainTabBar && InstagramZoneGuard.findReelIdentity(root) != null
-        val isKnownOtherScreen = InstagramZoneGuard.isMainReelsTab(root) ||
-            InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
-            isInstagramGridScreen(root) ||
-            isImmersiveReelViewer ||
-            isInstagramDmReplyBarVisible(root)
-        if (hasMainTabBar) {
-            isInstagramStoryViewersSheetOpen = false
-        }
-        if (isKnownOtherScreen) {
-            isInstagramStoryViewersSheetOpen = false
-            if (isInstagramHomeFeed) {
-                isInstagramHomeFeed = false
+            if (isHomeFeedTop) {
                 instagramHomeScrollPositionPx = 0
                 isInstagramHomeScrollAboveThreshold = false
                 instagramHomeScrollLastTriggerPositionPx = 0
             }
+
+            return
+        }
+        val hasMainTabBar = isInstagramMainTabBarShowing(root)
+        val isImmersiveReelViewer = !hasMainTabBar && InstagramZoneGuard.findReelIdentity(root) != null
+        val isKnownOtherScreen = hasMainTabBar ||
+            InstagramZoneGuard.isMainReelsTab(root) ||
+            InstagramZoneGuard.isSettingsOrOwnProfile(root) ||
+            isInstagramGridScreen(root) ||
+            isImmersiveReelViewer ||
+            isInstagramDmReplyBarVisible(root)
+        if (isKnownOtherScreen) {
+            isInstagramStoryViewersSheetOpen = false
+            isInstagramHomeFeed = false
         }
     }
 
@@ -955,9 +951,11 @@ class VaultAccessibilityService : AccessibilityService() {
             return
         }
         instagramHomeTabTappedAtMillis = SystemClock.elapsedRealtime()
-        instagramHomeScrollPositionPx = 0
-        isInstagramHomeScrollAboveThreshold = false
-        instagramHomeScrollLastTriggerPositionPx = 0
+        if (isInstagramHomeFeed) {
+            instagramHomeScrollPositionPx = 0
+            isInstagramHomeScrollAboveThreshold = false
+            instagramHomeScrollLastTriggerPositionPx = 0
+        }
     }
 
     private fun triggerInstagramHomeFeedScrollBlock() {

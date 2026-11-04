@@ -14,8 +14,13 @@ object InstagramZoneGuard {
     private const val REELS_TAB_LABEL = "Reels"
     private const val FRIENDS_TAB_LABEL = "Friends"
     private const val YOUR_STORY_LABEL = "Your story"
+    private const val STORY_TRAY_LABEL = "reels tray container"
     private const val BACK_BUTTON_LABEL = "Back"
+    private const val HOME_TAB_LABEL = "Home"
     private const val PROFILE_TAB_LABEL = "Profile"
+    private const val MESSAGE_TAB_LABEL = "Message"
+    private const val SEARCH_TAB_LABEL = "Search and explore"
+    private val NON_HOME_TAB_LABELS = listOf(MESSAGE_TAB_LABEL, PROFILE_TAB_LABEL, REELS_TAB_LABEL, SEARCH_TAB_LABEL)
 
     fun isMainReelsTab(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) &&
@@ -23,7 +28,16 @@ object InstagramZoneGuard {
             !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL)
 
     fun isHomeFeed(root: ScreenNode): Boolean =
-        root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL }
+        root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL } ||
+            root.hasVisibleNodeWithExactText(STORY_TRAY_LABEL)
+
+    fun isHomeFeedShowing(root: ScreenNode): Boolean =
+        root.hasVisibleNodeWithExactText(HOME_TAB_LABEL) &&
+            root.hasVisibleNodeWithExactText(PROFILE_TAB_LABEL) &&
+            !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL) &&
+            !isMainReelsTab(root) &&
+            !isSettingsOrOwnProfile(root) &&
+            NON_HOME_TAB_LABELS.none { root.hasVisibleSelectedNodeWithDescription(it) }
 
     fun isOwnProfileShowing(root: ScreenNode): Boolean =
         root.hasVisibleSelectedNodeWithDescription(PROFILE_TAB_LABEL) &&
