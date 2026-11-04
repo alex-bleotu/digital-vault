@@ -33,6 +33,7 @@ import com.digitalvault.ui.vault.VaultScreen
 fun VaultApp() {
     var current by rememberSaveable { mutableStateOf(VaultDestination.DASHBOARD) }
     var isSessionUnlocked by rememberSaveable { mutableStateOf(false) }
+    var isUnlockRequested by rememberSaveable { mutableStateOf(false) }
 
     val rulesViewModel: RulesViewModel = viewModel()
     LaunchedEffect(Unit) {
@@ -47,7 +48,10 @@ fun VaultApp() {
         bottomBar = {
             VaultBottomBar(
                 current = current,
-                onSelect = { current = it },
+                onSelect = {
+                    current = it
+                    isUnlockRequested = false
+                },
             )
         },
     ) { innerPadding ->
@@ -69,15 +73,24 @@ fun VaultApp() {
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
-            val isProtectedTab = current != VaultDestination.DASHBOARD
+            val isReadOnly = !isSessionUnlocked
+            val requestUnlock = { isUnlockRequested = true }
 
-            if (isProtectedTab && !isSessionUnlocked) {
+            if (isReadOnly && current == VaultDestination.VAULT) {
                 LockScreen(onUnlocked = { isSessionUnlocked = true })
+            } else if (isReadOnly && isUnlockRequested) {
+                LockScreen(
+                    onUnlocked = {
+                        isSessionUnlocked = true
+                        isUnlockRequested = false
+                    },
+                    onBack = { isUnlockRequested = false },
+                )
             } else {
                 when (current) {
                     VaultDestination.DASHBOARD -> DashboardScreen(onNavigate = { current = it })
-                    VaultDestination.RULES -> RulesScreen()
-                    VaultDestination.SHIELD -> ShieldScreen()
+                    VaultDestination.RULES -> RulesScreen(isReadOnly = isReadOnly, onRequestUnlock = requestUnlock)
+                    VaultDestination.SHIELD -> ShieldScreen(isReadOnly = isReadOnly, onRequestUnlock = requestUnlock)
                     VaultDestination.VAULT -> VaultScreen()
                 }
             }

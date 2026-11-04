@@ -1,6 +1,8 @@
 package com.digitalvault.ui.rules
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +39,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -48,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,6 +92,7 @@ import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.ui.components.ScrollEdge
 import com.digitalvault.ui.components.ScrollEdgeShadow
+import com.digitalvault.ui.components.UnlockToEditButton
 import com.digitalvault.ui.theme.VaultTheme
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -103,6 +108,8 @@ private const val AUTO_SAVE_DEBOUNCE_MILLIS = 300L
 
 private enum class TimeField { DAILY_LIMIT, SCHEDULE_START, SCHEDULE_END }
 
+private const val READ_ONLY_ALPHA = 0.5f
+
 private fun formatClock(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
 
 private fun formatDuration(minutes: Int): String = "%d:%02d".format(minutes / 60, minutes % 60)
@@ -110,12 +117,17 @@ private fun formatDuration(minutes: Int): String = "%d:%02d".format(minutes / 60
 private fun formatUsage(minutes: Long): String =
     if (minutes < 60) "${minutes}m" else "${minutes / 60}h ${"%02d".format(minutes % 60)}m"
 
+private fun formatUsedTime(seconds: Long): String =
+    "${formatUsage(seconds / 60)} ${"%02d".format(seconds % 60)}s"
+
 private fun formatHomeScrollThreshold(value: Float): String =
     if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RulesScreen(
+    isReadOnly: Boolean,
+    onRequestUnlock: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RulesViewModel = viewModel(),
 ) {
@@ -221,6 +233,7 @@ fun RulesScreen(
                             icon = appByPackage[rule.packageName]?.icon,
                             onClick = { editingRule = rule },
                             onRemove = { viewModel.removeRule(rule.packageName) },
+                            isReadOnly = isReadOnly,
                         )
                     }
 
@@ -266,12 +279,18 @@ fun RulesScreen(
                                     icon = null,
                                     onClick = { editingRule = rule },
                                     onRemove = { viewModel.removeRule(rule.packageName) },
+                                    isReadOnly = isReadOnly,
                                     showIcon = false,
                                 )
                             }
                         }
                     }
                 }
+                ScrollEdgeShadow(
+                    edge = ScrollEdge.TOP,
+                    listState = rulesListState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
                 ScrollEdgeShadow(
                     edge = ScrollEdge.BOTTOM,
                     listState = rulesListState,
@@ -281,20 +300,26 @@ fun RulesScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = { isPickerVisible = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.brass,
-                contentColor = colors.ink,
-            ),
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null)
-            Text(
-                text = "Add app to block",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 8.dp),
-            )
+        if (isReadOnly) {
+            UnlockToEditButton(onClick = onRequestUnlock)
+        } else {
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                Button(
+                    onClick = { isPickerVisible = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.brass,
+                        contentColor = colors.ink,
+                    ),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text(
+                        text = "Add app to block",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
         }
     }
 
@@ -329,6 +354,7 @@ fun RulesScreen(
                 label = labelByPackage[ruleBeingEdited.packageName] ?: ruleBeingEdited.packageName,
                 icon = appByPackage[ruleBeingEdited.packageName]?.icon,
                 usedSecondsToday = state.usageSecondsToday[ruleBeingEdited.packageName] ?: 0L,
+                isReadOnly = isReadOnly,
                 onSave = viewModel::updateRule,
             )
         }
@@ -342,6 +368,7 @@ private fun RuleRow(
     icon: ImageBitmap?,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    isReadOnly: Boolean,
     showIcon: Boolean = true,
 ) {
     val colors = VaultTheme.colors
@@ -351,20 +378,11 @@ private fun RuleRow(
         BlockMode.FULL_BLOCK -> "FULL BLOCK"
         BlockMode.SURFACE_BLOCK -> when {
             isChromeIncognitoRule -> "INCOGNITO BLOCK"
-            isYouTubeShortsRule -> "SHORTS BLOCK · ${rule.graceSeconds}S GRACE"
-            else -> "FEED BLOCK · ${rule.graceSeconds}S GRACE"
+            isYouTubeShortsRule -> "SHORTS BLOCK"
+            else -> "FEED BLOCK"
         }
-        BlockMode.UNRESTRICTED -> "TIME LIMITS ONLY"
+        BlockMode.UNRESTRICTED -> "TIME LIMITS"
     }
-    val timeLabels = buildList {
-        if (rule.mode != BlockMode.FULL_BLOCK && rule.isDailyLimitEnabled) {
-            add("${formatDuration(rule.dailyLimitMinutes)} DAILY")
-        }
-        if (rule.mode != BlockMode.FULL_BLOCK && rule.isScheduleEnabled) {
-            add("${formatClock(rule.scheduleStartMinute)}-${formatClock(rule.scheduleEndMinute)}")
-        }
-    }
-    val ruleSummary = (listOf(modeLabel) + timeLabels).joinToString(" · ")
     val modeColor = when (rule.mode) {
         BlockMode.FULL_BLOCK -> colors.rust
         BlockMode.SURFACE_BLOCK -> colors.brass
@@ -395,19 +413,21 @@ private fun RuleRow(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = ruleSummary,
+                    text = modeLabel,
                     style = MaterialTheme.typography.labelMedium,
                     color = modeColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            IconButton(onClick = onRemove) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Remove rule for $label",
-                    tint = colors.textMuted,
-                )
+            if (!isReadOnly) {
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Remove rule for $label",
+                        tint = colors.textMuted,
+                    )
+                }
             }
         }
     }
@@ -420,6 +440,7 @@ private fun RuleEditor(
     label: String,
     icon: ImageBitmap?,
     usedSecondsToday: Long,
+    isReadOnly: Boolean,
     onSave: (AppRule) -> Unit,
 ) {
     val colors = VaultTheme.colors
@@ -474,7 +495,7 @@ private fun RuleEditor(
     val latestOnSave by rememberUpdatedState(onSave)
 
     LaunchedEffect(editedRule) {
-        if (editedRule == lastSavedRule) {
+        if (isReadOnly || editedRule == lastSavedRule) {
             return@LaunchedEffect
         }
         delay(AUTO_SAVE_DEBOUNCE_MILLIS)
@@ -483,7 +504,7 @@ private fun RuleEditor(
     }
     DisposableEffect(Unit) {
         onDispose {
-            if (latestEditedRule != lastSavedRule) {
+            if (!isReadOnly && latestEditedRule != lastSavedRule) {
                 latestOnSave(latestEditedRule)
             }
         }
@@ -528,7 +549,7 @@ private fun RuleEditor(
                 text = buildAnnotatedString {
                     append("Used today ")
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colors.textPrimary)) {
-                        append(formatUsage(usedSecondsToday / 60))
+                        append(formatUsedTime(usedSecondsToday))
                     }
                     if (isDailyLimitEnabled) {
                         append(" of ${formatUsage(dailyLimitMinutes.toLong())}")
@@ -548,6 +569,7 @@ private fun RuleEditor(
                 title = "Full block",
                 detail = "The app closes the moment it opens.",
                 isSelected = mode == BlockMode.FULL_BLOCK,
+                isEnabled = !isReadOnly,
                 onSelect = { mode = BlockMode.FULL_BLOCK },
             )
             if (supportsSurfaces) {
@@ -557,6 +579,7 @@ private fun RuleEditor(
                         title = "Incognito block",
                         detail = "Chrome closes immediately the moment an Incognito tab is opened.",
                         isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        isEnabled = !isReadOnly,
                         onSelect = { mode = BlockMode.SURFACE_BLOCK },
                     )
                 } else if (isYouTubeShortsRule) {
@@ -564,6 +587,7 @@ private fun RuleEditor(
                         title = "Shorts block",
                         detail = "Only Shorts is blocked. The rest of YouTube is unaffected.",
                         isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        isEnabled = !isReadOnly,
                         onSelect = { mode = BlockMode.SURFACE_BLOCK },
                     )
                 } else {
@@ -571,15 +595,17 @@ private fun RuleEditor(
                         title = "Feed block",
                         detail = "The feed is blocked, but videos from friends are still allowed.",
                         isSelected = mode == BlockMode.SURFACE_BLOCK,
+                        isEnabled = !isReadOnly,
                         onSelect = { mode = BlockMode.SURFACE_BLOCK },
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
             ModeOption(
-                title = "Time limits only",
+                title = "Time limits",
                 detail = "The app stays open until the daily limit or schedule below kicks in.",
                 isSelected = mode == BlockMode.UNRESTRICTED,
+                isEnabled = !isReadOnly,
                 onSelect = { mode = BlockMode.UNRESTRICTED },
             )
 
@@ -594,6 +620,7 @@ private fun RuleEditor(
                 Slider(
                     value = graceStepIndex,
                     onValueChange = { graceStepIndex = it },
+                    enabled = !isReadOnly,
                     valueRange = 0f..(GRACE_SECONDS_STOPS.size - 1).toFloat(),
                     steps = GRACE_SECONDS_STOPS.size - 2,
                     modifier = Modifier.padding(horizontal = 6.dp),
@@ -601,14 +628,20 @@ private fun RuleEditor(
                     thumb = {
                         SliderDefaults.Thumb(
                             interactionSource = sliderInteractionSource,
+                            enabled = !isReadOnly,
                             thumbSize = DpSize(4.dp, 20.dp),
-                            colors = SliderDefaults.colors(thumbColor = colors.brass),
+                            colors = SliderDefaults.colors(
+                                thumbColor = colors.brass,
+                                disabledThumbColor = colors.brass.copy(alpha = READ_ONLY_ALPHA),
+                            ),
                         )
                     },
                     colors = SliderDefaults.colors(
                         thumbColor = colors.brass,
                         activeTrackColor = colors.brass,
                         inactiveTrackColor = colors.surfaceRaised,
+                        disabledActiveTrackColor = colors.brass.copy(alpha = READ_ONLY_ALPHA),
+                        disabledInactiveTrackColor = colors.surfaceRaised,
                     ),
                 )
             }
@@ -624,6 +657,7 @@ private fun RuleEditor(
                 Slider(
                     value = homeScrollThresholdStepIndex,
                     onValueChange = { homeScrollThresholdStepIndex = it },
+                    enabled = !isReadOnly,
                     valueRange = 0f..(HOME_SCROLL_THRESHOLD_STOPS.size - 1).toFloat(),
                     steps = HOME_SCROLL_THRESHOLD_STOPS.size - 2,
                     modifier = Modifier.padding(horizontal = 6.dp),
@@ -631,14 +665,20 @@ private fun RuleEditor(
                     thumb = {
                         SliderDefaults.Thumb(
                             interactionSource = homeScrollSliderInteractionSource,
+                            enabled = !isReadOnly,
                             thumbSize = DpSize(4.dp, 20.dp),
-                            colors = SliderDefaults.colors(thumbColor = colors.brass),
+                            colors = SliderDefaults.colors(
+                                thumbColor = colors.brass,
+                                disabledThumbColor = colors.brass.copy(alpha = READ_ONLY_ALPHA),
+                            ),
                         )
                     },
                     colors = SliderDefaults.colors(
                         thumbColor = colors.brass,
                         activeTrackColor = colors.brass,
                         inactiveTrackColor = colors.surfaceRaised,
+                        disabledActiveTrackColor = colors.brass.copy(alpha = READ_ONLY_ALPHA),
+                        disabledInactiveTrackColor = colors.surfaceRaised,
                     ),
                 )
             }
@@ -649,6 +689,7 @@ private fun RuleEditor(
                     title = "DAILY TIME LIMIT",
                     detail = "Block the app after using it this long today.",
                     isChecked = isDailyLimitEnabled,
+                    isEnabled = !isReadOnly,
                     onCheckedChange = { isDailyLimitEnabled = it },
                 )
                 if (isDailyLimitEnabled) {
@@ -656,6 +697,7 @@ private fun RuleEditor(
                     TimeValueButton(
                         label = "LIMIT",
                         value = formatDuration(dailyLimitMinutes),
+                        isEnabled = !isReadOnly,
                         onClick = { editingTimeField = TimeField.DAILY_LIMIT },
                     )
                 }
@@ -665,6 +707,7 @@ private fun RuleEditor(
                     title = "SCHEDULED BLOCK",
                     detail = "Block the app completely during these hours.",
                     isChecked = isScheduleEnabled,
+                    isEnabled = !isReadOnly,
                     onCheckedChange = { isScheduleEnabled = it },
                 )
                 if (isScheduleEnabled) {
@@ -673,6 +716,7 @@ private fun RuleEditor(
                         TimeValueButton(
                             label = "FROM",
                             value = formatClock(scheduleStartMinute),
+                            isEnabled = !isReadOnly,
                             onClick = { editingTimeField = TimeField.SCHEDULE_START },
                         )
                         Box(
@@ -685,6 +729,7 @@ private fun RuleEditor(
                         TimeValueButton(
                             label = "TO",
                             value = formatClock(scheduleEndMinute),
+                            isEnabled = !isReadOnly,
                             onClick = { editingTimeField = TimeField.SCHEDULE_END },
                         )
                     }
@@ -697,6 +742,7 @@ private fun RuleEditor(
                     title = "ALLOW 5-MINUTE BREAK",
                     detail = "Unlock this app for 5 minutes, once a day.",
                     isChecked = allowBreak,
+                    isEnabled = !isReadOnly,
                     onCheckedChange = { allowBreak = it },
                 )
             }
@@ -706,6 +752,11 @@ private fun RuleEditor(
             edge = ScrollEdge.TOP,
             scrollState = editorScrollState,
             modifier = Modifier.align(Alignment.TopCenter),
+        )
+        ScrollEdgeShadow(
+            edge = ScrollEdge.BOTTOM,
+            scrollState = editorScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 
@@ -741,6 +792,7 @@ private fun SettingSwitchRow(
     title: String,
     detail: String,
     isChecked: Boolean,
+    isEnabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val colors = VaultTheme.colors
@@ -767,9 +819,12 @@ private fun SettingSwitchRow(
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
+            enabled = isEnabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = colors.brass,
                 checkedTrackColor = colors.surfaceRaised,
+                disabledCheckedThumbColor = colors.brass.copy(alpha = READ_ONLY_ALPHA),
+                disabledCheckedTrackColor = colors.surfaceRaised,
             ),
         )
     }
@@ -779,6 +834,7 @@ private fun SettingSwitchRow(
 private fun TimeValueButton(
     label: String,
     value: String,
+    isEnabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -786,6 +842,7 @@ private fun TimeValueButton(
 
     Surface(
         onClick = onClick,
+        enabled = isEnabled,
         shape = VaultTheme.shapes.medium,
         color = colors.surfaceRaised,
         modifier = modifier,
@@ -960,17 +1017,25 @@ private fun ModeOption(
     title: String,
     detail: String,
     isSelected: Boolean,
+    isEnabled: Boolean,
     onSelect: () -> Unit,
 ) {
     val colors = VaultTheme.colors
+    val selectedBorderColor = if (isEnabled) colors.brass else colors.brass.copy(alpha = READ_ONLY_ALPHA)
+    val titleColor = when {
+        !isEnabled -> colors.textMuted
+        isSelected -> colors.brass
+        else -> colors.textPrimary
+    }
 
     Surface(
         onClick = onSelect,
+        enabled = isEnabled,
         shape = VaultTheme.shapes.medium,
         color = if (isSelected) colors.surfaceRaised else colors.surface,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isSelected) colors.brass else colors.surfaceRaised,
+            if (isSelected) selectedBorderColor else colors.surfaceRaised,
         ),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -978,7 +1043,7 @@ private fun ModeOption(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isSelected) colors.brass else colors.textPrimary,
+                color = titleColor,
             )
             Spacer(Modifier.height(4.dp))
             Text(
@@ -1004,128 +1069,145 @@ private fun AppPicker(
         apps.filter { it.packageName in order }.sortedBy { order.getValue(it.packageName) }
     }
 
-    LazyColumn(
+    val pickerListState = rememberLazyListState()
+
+    Text(
+        text = "Choose an app",
+        style = MaterialTheme.typography.headlineSmall,
+        color = colors.textPrimary,
+        modifier = Modifier.padding(horizontal = 24.dp),
+    )
+    Spacer(Modifier.height(16.dp))
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 560.dp)
-            .padding(horizontal = 24.dp),
-        contentPadding = PaddingValues(bottom = 32.dp),
+            .animateContentSize(animationSpec = tween(durationMillis = 300)),
     ) {
-        item {
-            Text(
-                text = "Choose an app",
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.textPrimary,
-            )
-            Spacer(Modifier.height(16.dp))
-        }
-
-        if (isLoading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = colors.brass)
-                }
-            }
-
-            return@LazyColumn
-        }
-
-        if (popularApps.isNotEmpty()) {
-            item {
-                Text(
-                    text = "POPULAR",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.textMuted,
-                )
-                Spacer(Modifier.height(12.dp))
-                popularApps.chunked(5).forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        row.forEach { app ->
-                            PopularAppTile(
-                                app = app,
-                                modifier = Modifier.weight(1f),
-                                onClick = { onSelect(app.packageName) },
-                            )
-                        }
-                        repeat(5 - row.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+        LazyColumn(
+            state = pickerListState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 512.dp)
+                .padding(horizontal = 24.dp),
+            contentPadding = PaddingValues(bottom = if (showAllApps) 32.dp else 8.dp),
+        ) {
+            if (isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = colors.brass)
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
 
-        item {
-            Surface(
-                onClick = { showAllApps = !showAllApps },
-                shape = VaultTheme.shapes.medium,
-                color = colors.surface,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                return@LazyColumn
+            }
+
+            if (popularApps.isNotEmpty()) {
+                item {
                     Text(
-                        text = "All apps",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textPrimary,
+                        text = "POPULAR",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textMuted,
                     )
-                    val chevronRotation by animateFloatAsState(
-                        targetValue = if (showAllApps) 180f else 0f,
-                        label = "chevron",
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = if (showAllApps) "Hide all apps" else "Show all apps",
-                        tint = colors.brass,
-                        modifier = Modifier.rotate(chevronRotation),
-                    )
+                    Spacer(Modifier.height(12.dp))
+                    popularApps.chunked(5).forEach { row ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { app ->
+                                PopularAppTile(
+                                    app = app,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onSelect(app.packageName) },
+                                )
+                            }
+                            repeat(5 - row.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
-            Spacer(Modifier.height(4.dp))
-        }
 
-        if (showAllApps) {
-            items(apps, key = { it.packageName }) { app ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(app.packageName) }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            item {
+                Surface(
+                    onClick = { showAllApps = !showAllApps },
+                    shape = VaultTheme.shapes.medium,
+                    color = colors.surface,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    AppIcon(icon = app.icon, label = app.label, size = 40.dp)
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            text = app.label,
+                            text = "All apps",
                             style = MaterialTheme.typography.bodyLarge,
                             color = colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
-                        Text(
-                            text = app.packageName,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        val chevronRotation by animateFloatAsState(
+                            targetValue = if (showAllApps) 180f else 0f,
+                            label = "chevron",
                         )
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            contentDescription = if (showAllApps) "Hide all apps" else "Show all apps",
+                            tint = colors.brass,
+                            modifier = Modifier.rotate(chevronRotation),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+
+            if (showAllApps) {
+                items(apps, key = { it.packageName }) { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(app.packageName) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppIcon(icon = app.icon, label = app.label, size = 40.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = app.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = app.packageName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
         }
+        ScrollEdgeShadow(
+            edge = ScrollEdge.TOP,
+            listState = pickerListState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+        ScrollEdgeShadow(
+            edge = ScrollEdge.BOTTOM,
+            listState = pickerListState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 

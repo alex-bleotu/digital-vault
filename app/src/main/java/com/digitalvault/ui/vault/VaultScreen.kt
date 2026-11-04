@@ -95,101 +95,120 @@ fun VaultScreen(
             .fillMaxSize()
             .background(colors.ink),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(screenScrollState)
-                .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 28.dp),
-        ) {
-            Text(
-                text = "Vault",
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.textPrimary,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "SECURITY · HEALTH · RECOVERY",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted,
-            )
-
-            Spacer(Modifier.height(24.dp))
-            SectionCard(title = "PERMISSION HEALTH") {
-                PermissionHealthRows(
-                    health = PermissionHealth(
-                        isAccessibilityLive = state.isAccessibilityLive,
-                        isOverlayLive = state.isOverlayLive,
-                        isAdminLive = state.isAdminLive,
-                        isBatteryLive = state.isBatteryLive,
-                        areNotificationsEnabled = state.areNotificationsEnabled,
-                    ),
-                    onPermissionResult = viewModel::refreshLiveChecks,
-                )
-                Spacer(Modifier.height(8.dp))
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 24.dp),
+            ) {
                 Text(
-                    text = state.lastCheckedAt?.let {
-                        "LAST CHECK · ${CheckFormatter.format(it.atZone(ZoneId.systemDefault())).uppercase()}"
-                    } ?: "CHECK PENDING",
+                    text = "Vault",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "SECURITY · HEALTH · RECOVERY",
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted,
                 )
-            }
 
-            Spacer(Modifier.height(16.dp))
-            SectionCard(title = "PASSCODE") {
-                Text(
-                    text = "Gates the Rules, Shield and Vault screens, protected system settings, and uninstalling.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textMuted,
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 24.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(screenScrollState)
+                        .padding(bottom = 24.dp),
+                ) {
+                    SectionCard(title = "PERMISSION HEALTH") {
+                        PermissionHealthRows(
+                            health = PermissionHealth(
+                                isAccessibilityLive = state.isAccessibilityLive,
+                                isOverlayLive = state.isOverlayLive,
+                                isAdminLive = state.isAdminLive,
+                                isBatteryLive = state.isBatteryLive,
+                                areNotificationsEnabled = state.areNotificationsEnabled,
+                            ),
+                            onPermissionResult = viewModel::refreshLiveChecks,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = state.lastCheckedAt?.let {
+                                "LAST CHECK · ${CheckFormatter.format(it.atZone(ZoneId.systemDefault())).uppercase()}"
+                            } ?: "CHECK PENDING",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.textMuted,
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    SectionCard(title = "PASSCODE") {
+                        Text(
+                            text = "Gates the Rules, Shield and Vault screens, protected system settings, and uninstalling.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textMuted,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { isChangingPasscode = true },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
+                        ) {
+                            Text("Change passcode")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { isRecoveringPasscode = true },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textMuted),
+                        ) {
+                            Text("Forgot passcode?")
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    SectionCard(title = "DANGER ZONE") {
+                        val standDownActive = state.standDownUntil?.isAfter(Instant.now()) == true
+
+                        Text(
+                            text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Shield enforcement.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textMuted,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { if (standDownActive) viewModel.armGuard() else viewModel.standDown() },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.rust),
+                        ) {
+                            Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
+                        }
+                    }
+
+                    Spacer(Modifier.height(28.dp))
+                    Text(
+                        text = "VERSION ${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textMuted,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                ScrollEdgeShadow(
+                    edge = ScrollEdge.TOP,
+                    scrollState = screenScrollState,
+                    modifier = Modifier.align(Alignment.TopCenter),
                 )
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = { isChangingPasscode = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
-                ) {
-                    Text("Change passcode")
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { isRecoveringPasscode = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textMuted),
-                ) {
-                    Text("Forgot passcode?")
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            SectionCard(title = "DANGER ZONE") {
-                val standDownActive = state.standDownUntil?.isAfter(Instant.now()) == true
-
-                Text(
-                    text = "Stand the guard down for 60 seconds to change protected settings (device admin, accessibility) and pause Rules and Shield enforcement.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textMuted,
+                ScrollEdgeShadow(
+                    edge = ScrollEdge.BOTTOM,
+                    scrollState = screenScrollState,
+                    modifier = Modifier.align(Alignment.BottomCenter),
                 )
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = { if (standDownActive) viewModel.armGuard() else viewModel.standDown() },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.rust),
-                ) {
-                    Text(text = if (standDownActive) "Guard is standing down…" else "Stand down for 60 seconds")
-                }
             }
-
-            Spacer(Modifier.height(28.dp))
-            Text(
-                text = "VERSION ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-            )
         }
-        ScrollEdgeShadow(
-            edge = ScrollEdge.BOTTOM,
-            scrollState = screenScrollState,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
     }
 }
 
