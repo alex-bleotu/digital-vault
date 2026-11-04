@@ -80,10 +80,13 @@ private const val GRID_TILE_DESCRIPTION_EXACT = "Image of Post"
 private const val IG_DM_COMPOSER_VIEW_ID = "com.instagram.android:id/row_thread_composer_edittext"
 
 private fun isInstagramDmReplyBarVisible(root: ScreenNode): Boolean =
-    root.hasVisibleNodeWithTextOrHintPrefix("Reply to") ||
-        root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
-        root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
-        root.hasVisibleNodeWithTextOrHintMatching { it.startsWith("Message") && !it.startsWith("Messages") }
+    !InstagramZoneGuard.isFriendsReelsFeed(root) &&
+        (
+            root.hasVisibleNodeWithTextOrHintPrefix("Reply to") ||
+                root.hasVisibleNodeWithTextOrHintPrefix("Reply in group to") ||
+                root.hasVisibleNodeWithViewId(IG_DM_COMPOSER_VIEW_ID) ||
+                root.hasVisibleNodeWithTextOrHintMatching { it.startsWith("Message") && !it.startsWith("Messages") }
+            )
 private const val USAGE_TICK_MILLIS = 10_000L
 private const val USAGE_MIN_TICK_MILLIS = 250L
 private const val MILLIS_PER_DAY = 24 * 60 * 60_000L

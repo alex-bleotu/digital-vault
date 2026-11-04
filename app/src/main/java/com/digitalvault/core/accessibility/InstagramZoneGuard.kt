@@ -31,6 +31,9 @@ object InstagramZoneGuard {
         root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL } ||
             root.hasVisibleNodeWithExactText(STORY_TRAY_LABEL)
 
+    fun isFriendsReelsFeed(root: ScreenNode): Boolean =
+        root.hasVisibleSelectedNodeWithDescription(FRIENDS_TAB_LABEL)
+
     fun isHomeFeedShowing(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(HOME_TAB_LABEL) &&
             root.hasVisibleNodeWithExactText(PROFILE_TAB_LABEL) &&
