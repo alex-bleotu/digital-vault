@@ -58,7 +58,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val DISMISS_MINUTES = 5
 private const val HOLD_MILLIS = 1600
@@ -88,10 +90,12 @@ private fun isInstagramDmReplyBarVisible(root: ScreenNode): Boolean =
                 root.hasVisibleNodeWithTextOrHintMatching { it.startsWith("Message") && !it.startsWith("Messages") }
             )
 private const val USAGE_TICK_MILLIS = 10_000L
+private const val USAGE_ACTIVE_TICK_MILLIS = 2_000L
 private const val USAGE_MIN_TICK_MILLIS = 250L
 private const val MILLIS_PER_DAY = 24 * 60 * 60_000L
 private const val USAGE_MAX_TICK_MILLIS = 20_000L
 private const val USAGE_PERSIST_INTERVAL_MILLIS = 60_000L
+private const val USAGE_FINAL_SAVE_TIMEOUT_MILLIS = 1_000L
 private val AUDIO_STOP_PACKAGES = setOf(YouTubeShortsMatcher.packageName, YouTubeRvxShortsMatcher.packageName)
 
 class VaultAccessibilityService : AccessibilityService() {
@@ -126,7 +130,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private var usageTickerJob: Job? = null
     private var lastUsageTickAtMillis: Long = 0L
     private var lastUsagePersistAtMillis: Long = 0L
-    private var timeRuleForegroundPackage: String? = null
+    private var usageForegroundPackage: String? = null
 
     @Volatile
     private var isPasswordSet: Boolean = false
@@ -141,6 +145,7 @@ class VaultAccessibilityService : AccessibilityService() {
     private val surfaceEntries = mutableMapOf<String, SurfaceEntry>()
     private var activeBlockedPackage: String? = null
     private var systemDialogsReceiver: BroadcastReceiver? = null
+    private var screenStateReceiver: BroadcastReceiver? = null
 
     @Volatile
     private var isInstagramSettingsOrProfile: Boolean = false
@@ -263,6 +268,24 @@ class VaultAccessibilityService : AccessibilityService() {
             IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        val screenReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_OFF -> onScreenOff()
+                    Intent.ACTION_SCREEN_ON -> onScreenOn()
+                }
+            }
+        }
+        screenStateReceiver = screenReceiver
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
 
         serviceScope.launch {
             RulesRepository(vaultDataStore).rules.collectLatest { rules ->
@@ -329,6 +352,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (packageName == this.packageName) {
             return
         }
+        onUsagePackageSeen(packageName)
         if (System.currentTimeMillis() < settingsUnlockedUntilMillis) {
             return
         }
@@ -356,11 +380,8 @@ class VaultAccessibilityService : AccessibilityService() {
                         guardBrowser(packageName)
                     }
                     val timeRule = timeRules[packageName]
-                    if (timeRule != null) {
-                        onTimeRulePackageSeen(packageName)
-                        if (enforceTimeRule(packageName, timeRule)) {
-                            return
-                        }
+                    if (timeRule != null && enforceTimeRule(packageName, timeRule)) {
+                        return
                     }
                     val rule = surfaceRules[packageName]
                     when {
@@ -375,11 +396,8 @@ class VaultAccessibilityService : AccessibilityService() {
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 val timeRule = timeRules[packageName]
-                if (timeRule != null) {
-                    onTimeRulePackageSeen(packageName)
-                    if (enforceTimeRule(packageName, timeRule)) {
-                        return
-                    }
+                if (timeRule != null && enforceTimeRule(packageName, timeRule)) {
+                    return
                 }
                 if (packageName == InstagramZoneGuard.PACKAGE_NAME) {
                     matchedRoot(packageName)?.let { updateInstagramSavedSection(it) }
@@ -406,8 +424,11 @@ class VaultAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        saveUsageBeforeShutdown()
         systemDialogsReceiver?.let { runCatching { unregisterReceiver(it) } }
         systemDialogsReceiver = null
+        screenStateReceiver?.let { runCatching { unregisterReceiver(it) } }
+        screenStateReceiver = null
         overlayController?.hide()
         overlayController = null
         abandonAudioFocus()
@@ -468,20 +489,55 @@ class VaultAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun onTimeRulePackageSeen(packageName: String) {
-        if (timeRuleForegroundPackage == packageName) {
-            return
-        }
-        timeRuleForegroundPackage = packageName
+    private fun restartUsageTicker() {
         usageTickerJob?.cancel()
         usageTickerJob = null
         updateUsageTicker()
     }
 
+    private fun onUsagePackageSeen(packageName: String) {
+        if (packageName == usageForegroundPackage || packageName !in usageTrackedPackages) {
+            return
+        }
+        if (powerManager?.isInteractive != true || overlayController?.isShowing == true) {
+            return
+        }
+        if (matchedRoot(packageName) == null) {
+            return
+        }
+        creditUsage()
+        usageForegroundPackage = packageName
+        restartUsageTicker()
+    }
+
+    private fun onScreenOff() {
+        val hadTrackedPackage = usageForegroundPackage != null
+        creditUsage()
+        usageForegroundPackage = null
+        if (hadTrackedPackage) {
+            persistUsage()
+        }
+    }
+
+    private fun onScreenOn() {
+        if (usageTrackedPackages.isNotEmpty()) {
+            restartUsageTicker()
+        }
+    }
+
+    private fun creditUsage(hasLeftDuringInterval: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        val elapsedMillis = (now - lastUsageTickAtMillis).coerceIn(0L, USAGE_MAX_TICK_MILLIS)
+        lastUsageTickAtMillis = now
+        val packageName = usageForegroundPackage ?: return
+        val creditedMillis = if (hasLeftDuringInterval) elapsedMillis / 2 else elapsedMillis
+        usageMillisByPackage[packageName] = (usageMillisByPackage[packageName] ?: 0L) + creditedMillis
+    }
+
     private fun nextUsageTickDelayMillis(): Long {
-        val packageName = timeRuleForegroundPackage ?: return USAGE_TICK_MILLIS
-        val rule = timeRules[packageName] ?: return USAGE_TICK_MILLIS
-        var delayMillis = USAGE_TICK_MILLIS
+        val packageName = usageForegroundPackage ?: return USAGE_TICK_MILLIS
+        val rule = timeRules[packageName] ?: return USAGE_ACTIVE_TICK_MILLIS
+        var delayMillis = USAGE_ACTIVE_TICK_MILLIS
         if (rule.isDailyLimitEnabled) {
             val remainingMillis = rule.dailyLimitMinutes * 60_000L - (usageMillisByPackage[packageName] ?: 0L)
             if (remainingMillis > 0) {
@@ -509,33 +565,23 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun onUsageTick() {
-        val now = SystemClock.elapsedRealtime()
-        val elapsedMillis = (now - lastUsageTickAtMillis).coerceIn(0L, USAGE_MAX_TICK_MILLIS)
-        lastUsageTickAtMillis = now
+        val previousPackage = usageForegroundPackage
+        val isScreenUsable = powerManager?.isInteractive == true && overlayController?.isShowing != true
+        val foregroundPackage = if (isScreenUsable) rootInActiveWindow?.packageName?.toString() else null
+        val trackedPackage = foregroundPackage?.takeIf { it in usageTrackedPackages }
+        val hasLeftTrackedPackage = previousPackage != null && previousPackage != trackedPackage
+        creditUsage(hasLeftDuringInterval = hasLeftTrackedPackage)
+        usageForegroundPackage = trackedPackage
         rollUsageDateIfNeeded()
-        if (powerManager?.isInteractive != true) {
-            return
-        }
-        if (overlayController?.isShowing == true) {
-            return
-        }
-        val foregroundPackage = rootInActiveWindow?.packageName?.toString() ?: return
-        if (foregroundPackage in usageTrackedPackages) {
-            usageMillisByPackage[foregroundPackage] = (usageMillisByPackage[foregroundPackage] ?: 0L) + elapsedMillis
-        }
-        val rule = timeRules[foregroundPackage]
-        val shouldPersist = now - lastUsagePersistAtMillis >= USAGE_PERSIST_INTERVAL_MILLIS ||
-            (rule != null && isDailyLimitReached(rule))
-        if (shouldPersist) {
+        val rule = foregroundPackage?.let { timeRules[it] }
+        val isPersistDue = SystemClock.elapsedRealtime() - lastUsagePersistAtMillis >= USAGE_PERSIST_INTERVAL_MILLIS
+        val isLimitJustReached = rule != null && isDailyLimitReached(rule) && !isTemporarilyAllowed(rule.packageName)
+        if (hasLeftTrackedPackage || isPersistDue || isLimitJustReached) {
             persistUsage()
         }
-        if (rule == null) {
-            timeRuleForegroundPackage = null
-
-            return
+        if (rule != null) {
+            enforceTimeRule(rule.packageName, rule)
         }
-        timeRuleForegroundPackage = foregroundPackage
-        enforceTimeRule(foregroundPackage, rule)
     }
 
     private fun rollUsageDateIfNeeded() {
@@ -548,13 +594,28 @@ class VaultAccessibilityService : AccessibilityService() {
         persistUsage()
     }
 
+    private fun usageSecondsSnapshot(): Map<String, Long> =
+        usageMillisByPackage.mapValues { (_, millis) -> millis / 1_000L }
+
     private fun persistUsage() {
         lastUsagePersistAtMillis = SystemClock.elapsedRealtime()
         val repository = appUsageRepository ?: return
         val date = usageDate
-        val snapshot = usageMillisByPackage.mapValues { (_, millis) -> millis / 1_000L }
+        val snapshot = usageSecondsSnapshot()
         serviceScope.launch {
             repository.save(date, snapshot)
+        }
+    }
+
+    private fun saveUsageBeforeShutdown() {
+        creditUsage()
+        val repository = appUsageRepository ?: return
+        val date = usageDate
+        val snapshot = usageSecondsSnapshot()
+        runBlocking(Dispatchers.IO) {
+            withTimeoutOrNull(USAGE_FINAL_SAVE_TIMEOUT_MILLIS) {
+                repository.save(date, snapshot)
+            }
         }
     }
 
@@ -1299,6 +1360,7 @@ class VaultAccessibilityService : AccessibilityService() {
             addAll(fullBlockRules.keys)
             addAll(surfaceRules.keys)
             addAll(timeRules.keys)
+            addAll(usageTrackedPackages)
             if (isPasswordSet) {
                 addAll(SettingsGuard.watchedPackages)
             }
