@@ -59,6 +59,19 @@ fun ScreenNode.hasVisibleNodeWithExactText(target: String): Boolean {
     return false
 }
 
+fun ScreenNode.hasVisibleSelectedNodeWithDescription(target: String): Boolean {
+    if (isVisibleToUser && isSelected && contentDescription?.toString() == target) {
+        return true
+    }
+    for (index in 0 until childCount) {
+        if (getChild(index)?.hasVisibleSelectedNodeWithDescription(target) == true) {
+            return true
+        }
+    }
+
+    return false
+}
+
 fun ScreenNode.anyDescendantDescriptionMatches(predicate: (CharSequence) -> Boolean): Boolean {
     contentDescription?.let { if (predicate(it)) return true }
     for (index in 0 until childCount) {
