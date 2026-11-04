@@ -643,6 +643,12 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun updateInstagramZone(root: ScreenNode) {
+        if (InstagramZoneGuard.isOwnProfileShowing(root)) {
+            isInstagramSettingsOrProfile = true
+            allowedInstagramReelIdentity = null
+
+            return
+        }
         if (InstagramZoneGuard.isMainReelsTab(root) || isInstagramGridScreen(root)) {
             isInstagramSettingsOrProfile = false
             allowedInstagramReelIdentity = null

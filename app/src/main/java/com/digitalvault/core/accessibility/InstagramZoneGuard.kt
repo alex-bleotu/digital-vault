@@ -2,6 +2,7 @@ package com.digitalvault.core.accessibility
 
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithExactText
+import com.digitalvault.core.accessibility.matcher.hasVisibleSelectedNodeWithDescription
 
 object InstagramZoneGuard {
 
@@ -14,6 +15,7 @@ object InstagramZoneGuard {
     private const val FRIENDS_TAB_LABEL = "Friends"
     private const val YOUR_STORY_LABEL = "Your story"
     private const val BACK_BUTTON_LABEL = "Back"
+    private const val PROFILE_TAB_LABEL = "Profile"
 
     fun isMainReelsTab(root: ScreenNode): Boolean =
         root.hasVisibleNodeWithExactText(REELS_TAB_LABEL) &&
@@ -22,6 +24,10 @@ object InstagramZoneGuard {
 
     fun isHomeFeed(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(YOUR_STORY_LABEL).any { it.text?.toString() == YOUR_STORY_LABEL }
+
+    fun isOwnProfileShowing(root: ScreenNode): Boolean =
+        root.hasVisibleSelectedNodeWithDescription(PROFILE_TAB_LABEL) &&
+            !root.hasVisibleNodeWithExactText(BACK_BUTTON_LABEL)
 
     fun isSettingsOrOwnProfile(root: ScreenNode): Boolean =
         root.findVisibleNodesByText(SETTINGS_MENU_LABEL).isNotEmpty() ||
