@@ -36,6 +36,7 @@ private const val DNS_PORT = 53
 private const val VPN_NOTIFICATION_ID = 2001
 private const val UPSTREAM_TIMEOUT_MILLIS = 4_000
 private const val ANDROID_AUTO_PACKAGE_NAME = "com.google.android.projection.gearhead"
+private val FILTERING_DNS_SERVERS = listOf("1.1.1.3", "1.0.0.3")
 
 class VaultVpnService : VpnService() {
 
@@ -53,6 +54,9 @@ class VaultVpnService : VpnService() {
     private var blockedDomains: Set<String> = emptySet()
 
     @Volatile
+    private var isAdultFilterEnabled: Boolean = false
+
+    @Volatile
     private var currentDnsServers: List<String> = emptyList()
 
     override fun onCreate() {
@@ -61,6 +65,7 @@ class VaultVpnService : VpnService() {
         serviceScope.launch {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
                 blockedDomains = config.blockedDomains
+                isAdultFilterEnabled = config.isAdultFilterEnabled
             }
         }
     }
@@ -259,22 +264,31 @@ class VaultVpnService : VpnService() {
         sourcePort: Int,
         output: FileOutputStream,
     ) {
+        val upstreamAddresses = if (isAdultFilterEnabled) {
+            FILTERING_DNS_SERVERS.map(InetAddress::getByName)
+        } else {
+            listOf(InetAddress.getByAddress(destAddress))
+        }
+        val response = upstreamAddresses.firstNotNullOfOrNull { address -> queryUpstream(query, address) }
+            ?: return
+        val replyPacket = buildReplyPacket(destAddress, sourceAddress, DNS_PORT, sourcePort, response)
+        writePacket(output, replyPacket)
+    }
+
+    private fun queryUpstream(query: ByteArray, address: InetAddress): ByteArray? =
         try {
-            val upstreamAddress = InetAddress.getByAddress(destAddress)
             DatagramSocket().use { socket ->
                 protect(socket)
                 socket.soTimeout = UPSTREAM_TIMEOUT_MILLIS
-                socket.send(DatagramPacket(query, query.size, InetSocketAddress(upstreamAddress, DNS_PORT)))
+                socket.send(DatagramPacket(query, query.size, InetSocketAddress(address, DNS_PORT)))
                 val responseBuffer = ByteArray(2048)
                 val responsePacket = DatagramPacket(responseBuffer, responseBuffer.size)
                 socket.receive(responsePacket)
-                val response = responseBuffer.copyOfRange(0, responsePacket.length)
-                val replyPacket = buildReplyPacket(destAddress, sourceAddress, DNS_PORT, sourcePort, response)
-                writePacket(output, replyPacket)
+                responseBuffer.copyOfRange(0, responsePacket.length)
             }
         } catch (_: Exception) {
+            null
         }
-    }
 
     private fun buildReplyPacket(
         sourceAddress: ByteArray,

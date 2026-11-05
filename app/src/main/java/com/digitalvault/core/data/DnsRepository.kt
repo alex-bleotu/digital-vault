@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.map
 class DnsRepository(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {
+        val ADULT_FILTER_ENABLED = booleanPreferencesKey("dns_adult_filter_enabled")
         val BLOCKED_DOMAINS = stringSetPreferencesKey("dns_blocked_domains")
         val VPN_BLOCKING_ENABLED = booleanPreferencesKey("dns_vpn_blocking_enabled")
     }
@@ -19,6 +20,7 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
     val config: Flow<DnsConfig> = dataStore.data.map { preferences ->
         DnsConfig(
             blockedDomains = preferences[Keys.BLOCKED_DOMAINS].orEmpty(),
+            isAdultFilterEnabled = preferences[Keys.ADULT_FILTER_ENABLED] ?: false,
             isVpnBlockingEnabled = preferences[Keys.VPN_BLOCKING_ENABLED] ?: false,
         )
     }
@@ -26,6 +28,12 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
     suspend fun setVpnBlockingEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[Keys.VPN_BLOCKING_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setAdultFilterEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.ADULT_FILTER_ENABLED] = enabled
         }
     }
 

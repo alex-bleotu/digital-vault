@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 
 data class ShieldUiState(
     val blockedDomains: List<String> = emptyList(),
+    val isAdultFilterEnabled: Boolean = false,
     val newDomainDraft: String = "",
     val isVpnBlockingEnabled: Boolean = false,
 )
@@ -29,6 +30,7 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
             dnsRepository.config.collect { config ->
                 uiState = uiState.copy(
                     blockedDomains = config.blockedDomains.sorted(),
+                    isAdultFilterEnabled = config.isAdultFilterEnabled,
                     isVpnBlockingEnabled = config.isVpnBlockingEnabled,
                 )
             }
@@ -50,6 +52,12 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
     fun removeBlockedDomain(domain: String) {
         viewModelScope.launch {
             dnsRepository.removeBlockedDomain(domain)
+        }
+    }
+
+    fun setAdultFilterEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            dnsRepository.setAdultFilterEnabled(enabled)
         }
     }
 

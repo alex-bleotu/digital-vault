@@ -20,19 +20,27 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +59,7 @@ import com.digitalvault.ui.components.ScrollEdgeShadow
 import com.digitalvault.ui.components.UnlockToEditButton
 import com.digitalvault.ui.components.ScrollEdge
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShieldScreen(
     isReadOnly: Boolean,
@@ -80,6 +89,8 @@ fun ShieldScreen(
         }
     }
 
+    val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var isDnsSheetVisible by rememberSaveable { mutableStateOf(false) }
     val screenScrollState = rememberScrollState()
 
     Box(
@@ -111,6 +122,8 @@ fun ShieldScreen(
 
                 Spacer(Modifier.height(20.dp))
                 Surface(
+                    onClick = { isDnsSheetVisible = true },
+                    enabled = !isReadOnly,
                     shape = VaultTheme.shapes.medium,
                     color = colors.surface,
                     modifier = Modifier.fillMaxWidth(),
@@ -121,34 +134,26 @@ fun ShieldScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "System-wide DNS blocking",
+                                text = "DNS blocking",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = if (isReadOnly) colors.textMuted else colors.textPrimary,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Blocks these domains in every app.",
+                                text = when {
+                                    !state.isVpnBlockingEnabled -> "Off"
+                                    state.isAdultFilterEnabled -> "On, adult sites blocked"
+                                    else -> "On"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textMuted,
                             )
                         }
                         Spacer(Modifier.width(16.dp))
-                        Switch(
-                            checked = state.isVpnBlockingEnabled,
-                            onCheckedChange = { enabled ->
-                                if (enabled) {
-                                    requestVpnBlocking()
-                                } else {
-                                    viewModel.disableVpnBlocking()
-                                }
-                            },
-                            enabled = !isReadOnly,
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = colors.brass,
-                                checkedTrackColor = colors.surfaceRaised,
-                                disabledCheckedThumbColor = colors.brass.copy(alpha = 0.5f),
-                                disabledCheckedTrackColor = colors.surfaceRaised,
-                            ),
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = colors.textMuted,
                         )
                     }
                 }
@@ -262,6 +267,44 @@ fun ShieldScreen(
                 )
             }
         }
+
+        if (isDnsSheetVisible && !isReadOnly) {
+            ModalBottomSheet(
+                onDismissRequest = { isDnsSheetVisible = false },
+                sheetState = dnsSheetState,
+                containerColor = colors.surface,
+            ) {
+                Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+                    Text(
+                        text = "DNS blocking",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    ShieldToggleRow(
+                        title = "System-wide DNS blocking",
+                        description = "Blocks your domains in every app.",
+                        isChecked = state.isVpnBlockingEnabled,
+                        isEnabled = true,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                requestVpnBlocking()
+                            } else {
+                                viewModel.disableVpnBlocking()
+                            }
+                        },
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    ShieldToggleRow(
+                        title = "Block adult sites",
+                        description = "Uses Cloudflare's family filter.",
+                        isChecked = state.isAdultFilterEnabled,
+                        isEnabled = state.isVpnBlockingEnabled,
+                        onCheckedChange = viewModel::setAdultFilterEnabled,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -314,5 +357,48 @@ private fun DomainRow(domain: String, isReadOnly: Boolean, onRemove: () -> Unit)
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ShieldToggleRow(
+    title: String,
+    description: String,
+    isChecked: Boolean,
+    isEnabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VaultTheme.colors
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isEnabled) colors.textPrimary else colors.textMuted,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            enabled = isEnabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.brass,
+                checkedTrackColor = colors.surfaceRaised,
+                disabledCheckedThumbColor = colors.brass.copy(alpha = 0.5f),
+                disabledCheckedTrackColor = colors.surfaceRaised,
+            ),
+        )
     }
 }
