@@ -1,6 +1,7 @@
 package com.digitalvault.ui.lock
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
@@ -150,24 +151,26 @@ class BlockOverlayController(private val context: Context) {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
+            screenOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
     }
 
     private fun overlayHeightPx(): Int =
-        if (isSamsung()) screenHeightPx() - samsungGapPx() else screenHeightPx() - gestureNavHeightPx()
+        if (isSamsung()) portraitScreenHeightPx() - samsungGapPx() else portraitScreenHeightPx() - gestureNavHeightPx()
 
     private fun isSamsung(): Boolean = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
 
     private fun samsungGapPx(): Int = (2 * context.resources.displayMetrics.density).toInt()
 
-    private fun screenHeightPx(): Int {
+    private fun portraitScreenHeightPx(): Int {
+        val metrics = context.resources.displayMetrics
         val display = windowManager?.defaultDisplay
-            ?: return context.resources.displayMetrics.heightPixels
+            ?: return maxOf(metrics.widthPixels, metrics.heightPixels)
         val point = Point()
         display.getRealSize(point)
 
-        return point.y
+        return maxOf(point.x, point.y)
     }
 
     private fun gestureNavHeightPx(): Int {
