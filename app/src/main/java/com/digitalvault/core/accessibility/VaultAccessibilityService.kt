@@ -1081,7 +1081,7 @@ class VaultAccessibilityService : AccessibilityService() {
         if (matcher.id in FAST_TRIGGER_SURFACE_IDS && !isInstagramReelContext) {
             return false
         }
-        if (matcher.id == ChromeIncognitoMatcher.id && IncognitoNotificationListener.isChromeIncognitoActive) {
+        if (matcher.id == ChromeIncognitoMatcher.id && isChromeIncognitoShowing()) {
             return true
         }
         if (matcher.id == InstagramReelsMatcher.id) {
@@ -1090,6 +1090,10 @@ class VaultAccessibilityService : AccessibilityService() {
 
         return matcher.isTargetSurface(root)
     }
+
+    private fun isChromeIncognitoShowing(): Boolean =
+        IncognitoNotificationListener.isChromeIncognitoActive ||
+            windows.any { BrowserGuard.isIncognitoWindowTitle(it.title) }
 
     private fun matchersFor(packageName: String, rule: AppRule): List<SurfaceMatcher> =
         SurfaceMatchers.forPackage(packageName).filter { matcher ->

@@ -30,6 +30,7 @@ object BrowserGuard {
 
     private const val MAX_NODES = 200
     private const val EDIT_TEXT_CLASS_NAME = "android.widget.EditText"
+    private const val INCOGNITO_WINDOW_TITLE_SUFFIX = "new incognito tab"
     private val incognitoMarkers = listOf(
         "you've gone incognito",
         "search your incognito tabs",
@@ -53,6 +54,9 @@ object BrowserGuard {
 
         return incognitoMarkers.any { marker -> texts.any { it.contains(marker) } }
     }
+
+    fun isIncognitoWindowTitle(title: CharSequence?): Boolean =
+        title?.toString()?.let { normalize(it).endsWith(INCOGNITO_WINDOW_TITLE_SUFFIX) } == true
 
     private fun matchesHost(text: String, domain: String): Boolean {
         val escaped = Regex.escape(domain)
