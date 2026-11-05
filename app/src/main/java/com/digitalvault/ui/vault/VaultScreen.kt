@@ -150,7 +150,7 @@ fun VaultScreen(
                     Spacer(Modifier.height(16.dp))
                     SectionCard(title = "PASSCODE") {
                         Text(
-                            text = "Gates the Rules, Shield and Vault screens, protected system settings, and uninstalling.",
+                            text = "Gates editing Rules and Shield, the Vault screen, protected system settings, and uninstalling.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textMuted,
                         )

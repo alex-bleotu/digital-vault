@@ -117,9 +117,6 @@ private fun formatDuration(minutes: Int): String = "%d:%02d".format(minutes / 60
 private fun formatUsage(minutes: Long): String =
     if (minutes < 60) "${minutes}m" else "${minutes / 60}h ${"%02d".format(minutes % 60)}m"
 
-private fun formatUsedTime(seconds: Long): String =
-    "${formatUsage(seconds / 60)} ${"%02d".format(seconds % 60)}s"
-
 private fun formatHomeScrollThreshold(value: Float): String =
     if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
 
@@ -549,7 +546,7 @@ private fun RuleEditor(
                 text = buildAnnotatedString {
                     append("Used today ")
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colors.textPrimary)) {
-                        append(formatUsedTime(usedSecondsToday))
+                        append(formatUsage((usedSecondsToday + 30) / 60))
                     }
                     if (isDailyLimitEnabled) {
                         append(" of ${formatUsage(dailyLimitMinutes.toLong())}")
