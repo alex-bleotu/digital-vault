@@ -146,7 +146,11 @@ class BlockOverlayController(private val context: Context) {
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             overlayHeightPx(),
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            if (focusable) {
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            },
             flags,
             PixelFormat.TRANSLUCENT,
         ).apply {
