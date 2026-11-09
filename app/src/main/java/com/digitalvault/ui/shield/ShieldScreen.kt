@@ -300,7 +300,7 @@ fun ShieldScreen(
                     Spacer(Modifier.height(20.dp))
                     ShieldToggleRow(
                         modifier = Modifier.padding(horizontal = 24.dp),
-                        title = "VPN blocking",
+                        title = "Use local VPN",
                         description = "Blocks your domains in every app.",
                         isChecked = state.isVpnBlockingEnabled,
                         isEnabled = true,
@@ -418,6 +418,8 @@ fun ShieldScreen(
                                 Spacer(Modifier.height(16.dp))
                             }
                         }
+                    } else {
+                        Spacer(Modifier.height(16.dp))
                     }
                 }
             }
