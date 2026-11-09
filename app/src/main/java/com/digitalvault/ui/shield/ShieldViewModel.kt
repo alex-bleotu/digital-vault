@@ -12,6 +12,8 @@ import com.digitalvault.core.vpn.VaultVpnService
 import kotlinx.coroutines.launch
 
 data class ShieldUiState(
+    val allowedDomains: List<String> = emptyList(),
+    val newAllowedDomainDraft: String = "",
     val blockedDomains: List<String> = emptyList(),
     val isAdultFilterEnabled: Boolean = false,
     val newDomainDraft: String = "",
@@ -29,6 +31,7 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             dnsRepository.config.collect { config ->
                 uiState = uiState.copy(
+                    allowedDomains = config.allowedDomains.sorted(),
                     blockedDomains = config.blockedDomains.sorted(),
                     isAdultFilterEnabled = config.isAdultFilterEnabled,
                     isVpnBlockingEnabled = config.isVpnBlockingEnabled,
@@ -46,6 +49,24 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             dnsRepository.addBlockedDomain(domain)
             uiState = uiState.copy(newDomainDraft = "")
+        }
+    }
+
+    fun updateNewAllowedDomainDraft(value: String) {
+        uiState = uiState.copy(newAllowedDomainDraft = value)
+    }
+
+    fun addAllowedDomain() {
+        val domain = uiState.newAllowedDomainDraft
+        viewModelScope.launch {
+            dnsRepository.addAllowedDomain(domain)
+            uiState = uiState.copy(newAllowedDomainDraft = "")
+        }
+    }
+
+    fun removeAllowedDomain(domain: String) {
+        viewModelScope.launch {
+            dnsRepository.removeAllowedDomain(domain)
         }
     }
 

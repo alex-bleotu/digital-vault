@@ -25,6 +25,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -35,6 +38,7 @@ private const val UDP_PROTOCOL = 17
 private const val DNS_PORT = 53
 private const val VPN_NOTIFICATION_ID = 2001
 private const val UPSTREAM_TIMEOUT_MILLIS = 4_000
+private const val TUNNEL_RECREATE_DELAY_MILLIS = 600L
 private const val ANDROID_AUTO_PACKAGE_NAME = "com.google.android.projection.gearhead"
 private val FILTERING_DNS_SERVERS = listOf("1.1.1.3", "1.0.0.3")
 
@@ -51,6 +55,12 @@ class VaultVpnService : VpnService() {
     private var isReadLoopActive: Boolean = false
 
     @Volatile
+    private var hasLoadedConfig: Boolean = false
+
+    @Volatile
+    private var allowedDomains: Set<String> = emptySet()
+
+    @Volatile
     private var blockedDomains: Set<String> = emptySet()
 
     @Volatile
@@ -62,10 +72,24 @@ class VaultVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         isRunning.value = true
+        val initialConfig = runBlocking { DnsRepository(vaultDataStore).config.first() }
+        allowedDomains = initialConfig.allowedDomains
+        blockedDomains = initialConfig.blockedDomains
+        isAdultFilterEnabled = initialConfig.isAdultFilterEnabled
+        hasLoadedConfig = true
         serviceScope.launch {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
+                val hasFilterChanged = hasLoadedConfig && (
+                    config.allowedDomains != allowedDomains ||
+                        config.blockedDomains != blockedDomains ||
+                        config.isAdultFilterEnabled != isAdultFilterEnabled
+                    )
+                allowedDomains = config.allowedDomains
                 blockedDomains = config.blockedDomains
                 isAdultFilterEnabled = config.isAdultFilterEnabled
+                if (hasFilterChanged && tunFd != null) {
+                    reestablishTunnel()
+                }
             }
         }
     }
@@ -173,6 +197,13 @@ class VaultVpnService : VpnService() {
         connectivityManager.registerDefaultNetworkCallback(callback)
     }
 
+    private suspend fun reestablishTunnel() {
+        synchronized(this) { stopVpn() }
+        delay(TUNNEL_RECREATE_DELAY_MILLIS)
+        synchronized(this) { startVpn() }
+    }
+
+    @Synchronized
     private fun restartVpn() {
         stopVpn()
         startVpn()
@@ -253,7 +284,8 @@ class VaultVpnService : VpnService() {
         }
 
         relayExecutor.submit {
-            relayToUpstream(queryBytes, sourceAddress, destAddress, sourcePort, output)
+            val isAllowed = queriedDomain != null && DomainMatcher.matches(queriedDomain, allowedDomains)
+            relayToUpstream(queryBytes, sourceAddress, destAddress, sourcePort, output, isAllowed)
         }
     }
 
@@ -263,8 +295,9 @@ class VaultVpnService : VpnService() {
         destAddress: ByteArray,
         sourcePort: Int,
         output: FileOutputStream,
+        isAllowed: Boolean,
     ) {
-        val upstreamAddresses = if (isAdultFilterEnabled) {
+        val upstreamAddresses = if (isAdultFilterEnabled && !isAllowed) {
             FILTERING_DNS_SERVERS.map(InetAddress::getByName)
         } else {
             listOf(InetAddress.getByAddress(destAddress))

@@ -5,18 +5,25 @@ import android.content.ActivityNotFoundException
 import android.net.VpnService
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -92,6 +99,7 @@ fun ShieldScreen(
     val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isDnsSheetVisible by rememberSaveable { mutableStateOf(false) }
     val screenScrollState = rememberScrollState()
+    val allowedListState = rememberLazyListState()
 
     Box(
         modifier = modifier
@@ -122,8 +130,13 @@ fun ShieldScreen(
 
                 Spacer(Modifier.height(20.dp))
                 Surface(
-                    onClick = { isDnsSheetVisible = true },
-                    enabled = !isReadOnly,
+                    onClick = {
+                        if (isReadOnly) {
+                            onRequestUnlock()
+                        } else {
+                            isDnsSheetVisible = true
+                        }
+                    },
                     shape = VaultTheme.shapes.medium,
                     color = colors.surface,
                     modifier = Modifier.fillMaxWidth(),
@@ -233,7 +246,7 @@ fun ShieldScreen(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Add a domain to block it in browsers.\nTurn on DNS blocking to cover every app.",
+                                    text = "Add a domain to block it in browsers.\nTurn on DNS blocking for every app.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = colors.textMuted,
                                     textAlign = TextAlign.Center,
@@ -274,15 +287,20 @@ fun ShieldScreen(
                 sheetState = dnsSheetState,
                 containerColor = colors.surface,
             ) {
-                Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+                Column(
+                    modifier = Modifier
+                        .animateContentSize(animationSpec = tween(durationMillis = 300)),
+                ) {
                     Text(
                         text = "DNS blocking",
                         style = MaterialTheme.typography.headlineSmall,
                         color = colors.textPrimary,
+                        modifier = Modifier.padding(horizontal = 24.dp),
                     )
                     Spacer(Modifier.height(20.dp))
                     ShieldToggleRow(
-                        title = "System-wide DNS blocking",
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        title = "VPN blocking",
                         description = "Blocks your domains in every app.",
                         isChecked = state.isVpnBlockingEnabled,
                         isEnabled = true,
@@ -296,12 +314,111 @@ fun ShieldScreen(
                     )
                     Spacer(Modifier.height(20.dp))
                     ShieldToggleRow(
+                        modifier = Modifier.padding(horizontal = 24.dp),
                         title = "Block adult sites",
                         description = "Uses Cloudflare's family filter.",
                         isChecked = state.isAdultFilterEnabled,
                         isEnabled = state.isVpnBlockingEnabled,
                         onCheckedChange = viewModel::setAdultFilterEnabled,
                     )
+                    if (state.isVpnBlockingEnabled && state.isAdultFilterEnabled) {
+                        Column {
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                text = "Allowed domains",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 24.dp),
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Skip the adult filter for these. Your blocked list wins.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textMuted,
+                                modifier = Modifier.padding(horizontal = 24.dp),
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.padding(horizontal = 24.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                OutlinedTextField(
+                                    value = state.newAllowedDomainDraft,
+                                    onValueChange = viewModel::updateNewAllowedDomainDraft,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(52.dp),
+                                    textStyle = MaterialTheme.typography.labelLarge,
+                                    placeholder = {
+                                        Text(
+                                            text = "domain.com",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = colors.textMuted,
+                                        )
+                                    },
+                                    singleLine = true,
+                                    shape = VaultTheme.shapes.medium,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = { viewModel.addAllowedDomain() }),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = colors.textPrimary,
+                                        unfocusedTextColor = colors.textPrimary,
+                                        focusedBorderColor = colors.brass,
+                                        unfocusedBorderColor = colors.surfaceRaised,
+                                        cursorColor = colors.brass,
+                                    ),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    onClick = viewModel::addAllowedDomain,
+                                    shape = VaultTheme.shapes.medium,
+                                    color = colors.brass,
+                                    modifier = Modifier.size(52.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Add,
+                                            contentDescription = "Add allowed domain",
+                                            tint = colors.ink,
+                                        )
+                                    }
+                                }
+                            }
+                            if (state.allowedDomains.isNotEmpty()) {
+                                Spacer(Modifier.height(12.dp))
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    LazyColumn(
+                                        state = allowedListState,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 240.dp),
+                                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        items(state.allowedDomains, key = { it }) { domain ->
+                                            DomainRow(
+                                                domain = domain,
+                                                isReadOnly = isReadOnly,
+                                                onRemove = { viewModel.removeAllowedDomain(domain) },
+                                            )
+                                        }
+                                    }
+                                    ScrollEdgeShadow(
+                                        edge = ScrollEdge.TOP,
+                                        listState = allowedListState,
+                                        modifier = Modifier.align(Alignment.TopCenter),
+                                    )
+                                    ScrollEdgeShadow(
+                                        edge = ScrollEdge.BOTTOM,
+                                        listState = allowedListState,
+                                        modifier = Modifier.align(Alignment.BottomCenter),
+                                    )
+                                }
+                            } else {
+                                Spacer(Modifier.height(16.dp))
+                            }
+                        }
+                    }
                 }
             }
         }

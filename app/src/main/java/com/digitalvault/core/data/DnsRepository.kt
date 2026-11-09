@@ -13,12 +13,14 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {
         val ADULT_FILTER_ENABLED = booleanPreferencesKey("dns_adult_filter_enabled")
+        val ALLOWED_DOMAINS = stringSetPreferencesKey("dns_allowed_domains")
         val BLOCKED_DOMAINS = stringSetPreferencesKey("dns_blocked_domains")
         val VPN_BLOCKING_ENABLED = booleanPreferencesKey("dns_vpn_blocking_enabled")
     }
 
     val config: Flow<DnsConfig> = dataStore.data.map { preferences ->
         DnsConfig(
+            allowedDomains = preferences[Keys.ALLOWED_DOMAINS].orEmpty(),
             blockedDomains = preferences[Keys.BLOCKED_DOMAINS].orEmpty(),
             isAdultFilterEnabled = preferences[Keys.ADULT_FILTER_ENABLED] ?: false,
             isVpnBlockingEnabled = preferences[Keys.VPN_BLOCKING_ENABLED] ?: false,
@@ -50,6 +52,22 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
     suspend fun removeBlockedDomain(domain: String) {
         dataStore.edit { preferences ->
             preferences[Keys.BLOCKED_DOMAINS] = preferences[Keys.BLOCKED_DOMAINS].orEmpty() - domain
+        }
+    }
+
+    suspend fun addAllowedDomain(domain: String) {
+        val normalized = normalizeDomain(domain)
+        if (normalized.isEmpty()) {
+            return
+        }
+        dataStore.edit { preferences ->
+            preferences[Keys.ALLOWED_DOMAINS] = preferences[Keys.ALLOWED_DOMAINS].orEmpty() + normalized
+        }
+    }
+
+    suspend fun removeAllowedDomain(domain: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.ALLOWED_DOMAINS] = preferences[Keys.ALLOWED_DOMAINS].orEmpty() - domain
         }
     }
 
