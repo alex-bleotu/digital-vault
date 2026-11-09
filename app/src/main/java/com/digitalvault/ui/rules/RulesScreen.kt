@@ -1080,39 +1080,32 @@ private fun AppPicker(
             .fillMaxWidth()
             .animateContentSize(animationSpec = tween(durationMillis = 300)),
     ) {
-        LazyColumn(
-            state = pickerListState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 512.dp)
-                .padding(horizontal = 24.dp),
-            contentPadding = PaddingValues(bottom = if (showAllApps) 32.dp else 8.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             if (isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = colors.brass)
-                    }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = colors.brass)
                 }
-
-                return@LazyColumn
-            }
-
-            if (popularApps.isNotEmpty()) {
-                item {
+            } else {
+                if (popularApps.isNotEmpty()) {
                     Text(
                         text = "POPULAR",
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.textMuted,
+                        modifier = Modifier.padding(horizontal = 24.dp),
                     )
                     Spacer(Modifier.height(12.dp))
                     popularApps.chunked(5).forEach { row ->
-                        Row(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp),
+                        ) {
                             row.forEach { app ->
                                 PopularAppTile(
                                     app = app,
@@ -1128,14 +1121,14 @@ private fun AppPicker(
                     }
                     Spacer(Modifier.height(8.dp))
                 }
-            }
 
-            item {
                 Surface(
                     onClick = { showAllApps = !showAllApps },
                     shape = VaultTheme.shapes.medium,
                     color = colors.surface,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
                 ) {
                     Row(
                         modifier = Modifier
@@ -1162,49 +1155,62 @@ private fun AppPicker(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-            }
 
-            if (showAllApps) {
-                items(apps, key = { it.packageName }) { app ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(app.packageName) }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AppIcon(icon = app.icon, label = app.label, size = 40.dp)
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = app.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = colors.textPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = app.packageName,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.textMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                if (showAllApps) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        LazyColumn(
+                            state = pickerListState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp),
+                            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp),
+                        ) {
+                            items(apps, key = { it.packageName }) { app ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(VaultTheme.shapes.medium)
+                                        .clickable { onSelect(app.packageName) }
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    AppIcon(icon = app.icon, label = app.label, size = 40.dp)
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = app.label,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = colors.textPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = app.packageName,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = colors.textMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
                         }
+                        ScrollEdgeShadow(
+                            edge = ScrollEdge.TOP,
+                            listState = pickerListState,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                        ScrollEdgeShadow(
+                            edge = ScrollEdge.BOTTOM,
+                            listState = pickerListState,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
                     }
+                } else {
+                    Spacer(Modifier.height(4.dp))
                 }
             }
         }
-        ScrollEdgeShadow(
-            edge = ScrollEdge.TOP,
-            listState = pickerListState,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-        ScrollEdgeShadow(
-            edge = ScrollEdge.BOTTOM,
-            listState = pickerListState,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
     }
 }
 
@@ -1218,8 +1224,9 @@ private fun PopularAppTile(
 
     Column(
         modifier = modifier
+            .clip(VaultTheme.shapes.medium)
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AppIcon(icon = app.icon, label = app.label, size = 48.dp)
