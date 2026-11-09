@@ -30,9 +30,9 @@ import com.digitalvault.ui.update.UpdateDialog
 import com.digitalvault.ui.vault.VaultScreen
 
 @Composable
-fun VaultApp() {
+fun VaultApp(isInitiallyUnlocked: Boolean = false) {
     var current by rememberSaveable { mutableStateOf(VaultDestination.DASHBOARD) }
-    var isSessionUnlocked by rememberSaveable { mutableStateOf(false) }
+    var isSessionUnlocked by rememberSaveable { mutableStateOf(isInitiallyUnlocked) }
     var isUnlockRequested by rememberSaveable { mutableStateOf(false) }
 
     val rulesViewModel: RulesViewModel = viewModel()

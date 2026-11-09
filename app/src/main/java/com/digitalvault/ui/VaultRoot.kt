@@ -3,8 +3,12 @@ package com.digitalvault.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.Box
@@ -16,6 +20,7 @@ import com.digitalvault.ui.theme.VaultTheme
 fun VaultRoot(viewModel: VaultRootViewModel = viewModel()) {
     val onboardingComplete by viewModel.onboardingComplete.collectAsState()
     val isPasswordSet by viewModel.isPasswordSet.collectAsState()
+    var hasCreatedPasscode by rememberSaveable { mutableStateOf(false) }
 
     when {
         onboardingComplete == null || (onboardingComplete == true && isPasswordSet == null) -> Box(
@@ -26,8 +31,11 @@ fun VaultRoot(viewModel: VaultRootViewModel = viewModel()) {
 
         onboardingComplete == false -> OnboardingScreen(onComplete = {})
 
-        isPasswordSet == false -> LockScreen(onUnlocked = {}, forceCreate = true)
+        isPasswordSet == false -> {
+            SideEffect { hasCreatedPasscode = true }
+            LockScreen(onUnlocked = {}, forceCreate = true)
+        }
 
-        else -> VaultApp()
+        else -> VaultApp(isInitiallyUnlocked = hasCreatedPasscode)
     }
 }
