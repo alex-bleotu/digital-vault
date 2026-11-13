@@ -157,6 +157,7 @@ class VaultVpnService : VpnService() {
         }
         VaultNotifications.clearVpnTakenOverAlert(this)
         tunFd = establishedFd
+        publishRunningState(true)
         currentDnsServers = dnsServers
         isReadLoopActive = true
 
@@ -178,6 +179,11 @@ class VaultVpnService : VpnService() {
             runCatching { it.close() }
         }
         tunFd = null
+        publishRunningState(false)
+    }
+
+    private fun publishRunningState(isTunnelUp: Boolean) {
+        runBlocking { DnsRepository(vaultDataStore).setVpnRunning(isTunnelUp) }
     }
 
     private fun registerNetworkCallback() {

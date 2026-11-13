@@ -1,10 +1,12 @@
 package com.digitalvault.ui.dashboard
 
+import android.app.ActivityManager
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.getSystemService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.digitalvault.core.data.DnsRepository
@@ -24,6 +26,7 @@ data class DashboardUiState(
     val surfaceBlockCount: Int = 0,
     val blockedDomainCount: Int = 0,
     val isVpnBlockingEnabled: Boolean = false,
+    val isVpnRunning: Boolean = false,
     val isPasswordSet: Boolean = false,
     val isAccessibilityLive: Boolean = false,
     val isOverlayLive: Boolean = false,
@@ -68,6 +71,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     surfaceBlockCount = rules.count { it.mode == BlockMode.SURFACE_BLOCK },
                     blockedDomainCount = dnsConfig.blockedDomains.size,
                     isVpnBlockingEnabled = dnsConfig.isVpnBlockingEnabled,
+                    isVpnRunning = dnsConfig.isVpnRunning && isVpnServiceAlive(),
                     isPasswordSet = vaultConfig.isPasswordSet,
                     lastCheckedAt = lastChecked,
                     standDownUntil = vaultConfig.unlockedForSettingsUntil,
@@ -85,6 +89,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun isVpnServiceAlive(): Boolean {
+        val activityManager = getApplication<Application>().getSystemService<ActivityManager>() ?: return false
+
+        return activityManager.getRunningServices(Int.MAX_VALUE).any { service ->
+            service.service.className == VaultVpnService::class.java.name
+        }
+    }
+
     fun restartVpn() {
         if (!uiState.isVpnBlockingEnabled) {
             return
@@ -94,6 +107,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshLiveChecks() {
         uiState = uiState.copy(
+            isVpnRunning = uiState.isVpnRunning && isVpnServiceAlive(),
             isAccessibilityLive = permissions.isAccessibilityEnabled(),
             isOverlayLive = permissions.isOverlayGranted(),
             isAdminLive = permissions.isDeviceAdminActive(),

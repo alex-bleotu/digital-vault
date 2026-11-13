@@ -33,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +58,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.components.PermissionHealth
 import com.digitalvault.ui.components.ScrollEdge
 import com.digitalvault.ui.components.ScrollEdgeShadow
@@ -92,7 +90,6 @@ fun DashboardScreen(
     val state = viewModel.uiState
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
-    val isVpnRunning by VaultVpnService.isRunning.collectAsState()
 
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -173,7 +170,7 @@ fun DashboardScreen(
                     isAdminLive = state.isAdminLive,
                     isBatteryLive = state.isBatteryLive,
                     areNotificationsEnabled = state.areNotificationsEnabled,
-                    isVpnLive = !state.isVpnBlockingEnabled || isVpnRunning,
+                    isVpnLive = !state.isVpnBlockingEnabled || state.isVpnRunning,
                 )
                 if (health.hasIssues) {
                     Spacer(Modifier.height(24.dp))
@@ -236,10 +233,10 @@ fun DashboardScreen(
                         title = "VPN",
                         status = when {
                             !state.isVpnBlockingEnabled -> "Inactive"
-                            isVpnRunning -> "Active"
+                            state.isVpnRunning -> "Active"
                             else -> "Taken over"
                         },
-                        isActive = state.isVpnBlockingEnabled && isVpnRunning,
+                        isActive = state.isVpnBlockingEnabled && state.isVpnRunning,
                         onClick = {
                             if (state.isVpnBlockingEnabled) {
                                 showRestartVpnDialog = true

@@ -5,4 +5,5 @@ data class DnsConfig(
     val blockedDomains: Set<String> = emptySet(),
     val isAdultFilterEnabled: Boolean = false,
     val isVpnBlockingEnabled: Boolean = false,
+    val isVpnRunning: Boolean = false,
 )

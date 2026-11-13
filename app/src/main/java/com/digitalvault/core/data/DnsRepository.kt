@@ -16,6 +16,7 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
         val ALLOWED_DOMAINS = stringSetPreferencesKey("dns_allowed_domains")
         val BLOCKED_DOMAINS = stringSetPreferencesKey("dns_blocked_domains")
         val VPN_BLOCKING_ENABLED = booleanPreferencesKey("dns_vpn_blocking_enabled")
+        val VPN_RUNNING = booleanPreferencesKey("dns_vpn_running")
     }
 
     val config: Flow<DnsConfig> = dataStore.data.map { preferences ->
@@ -24,12 +25,19 @@ class DnsRepository(private val dataStore: DataStore<Preferences>) {
             blockedDomains = preferences[Keys.BLOCKED_DOMAINS].orEmpty(),
             isAdultFilterEnabled = preferences[Keys.ADULT_FILTER_ENABLED] ?: false,
             isVpnBlockingEnabled = preferences[Keys.VPN_BLOCKING_ENABLED] ?: false,
+            isVpnRunning = preferences[Keys.VPN_RUNNING] ?: false,
         )
     }
 
     suspend fun setVpnBlockingEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[Keys.VPN_BLOCKING_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setVpnRunning(isRunning: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.VPN_RUNNING] = isRunning
         }
     }
 
