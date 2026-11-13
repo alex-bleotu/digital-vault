@@ -43,9 +43,10 @@ data class PermissionHealth(
     val isAdminLive: Boolean,
     val isBatteryLive: Boolean,
     val areNotificationsEnabled: Boolean,
+    val isVpnLive: Boolean = true,
 ) {
     val hasIssues: Boolean
-        get() = !isAccessibilityLive || !isOverlayLive || !isAdminLive || !isBatteryLive || !areNotificationsEnabled
+        get() = !isVpnLive || !isAccessibilityLive || !isOverlayLive || !isAdminLive || !isBatteryLive || !areNotificationsEnabled
 }
 
 @Composable
@@ -53,6 +54,7 @@ fun PermissionHealthRows(
     health: PermissionHealth,
     onPermissionResult: () -> Unit,
     showHealthy: Boolean = true,
+    onVpnFix: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val permissions = remember(context) { SetupPermissions(context) }
@@ -68,6 +70,13 @@ fun PermissionHealthRows(
     }
 
     Column {
+        if (!health.isVpnLive) {
+            HealthRow(
+                label = "Local VPN taken over",
+                isHealthy = false,
+                onFix = onVpnFix,
+            )
+        }
         if (showHealthy || !health.isAccessibilityLive) {
             HealthRow(
                 label = "Accessibility engine",

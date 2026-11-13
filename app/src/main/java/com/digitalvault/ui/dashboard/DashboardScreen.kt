@@ -1,5 +1,10 @@
 package com.digitalvault.ui.dashboard
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.net.VpnService
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -28,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeStyle
@@ -52,6 +59,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.components.PermissionHealth
 import com.digitalvault.ui.components.ScrollEdge
 import com.digitalvault.ui.components.ScrollEdgeShadow
@@ -83,6 +91,16 @@ fun DashboardScreen(
     val colors = VaultTheme.colors
     val state = viewModel.uiState
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    val isVpnRunning by VaultVpnService.isRunning.collectAsState()
+
+    val vpnPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.restartVpn()
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -93,6 +111,18 @@ fun DashboardScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
 
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    fun restoreVpn() {
+        val prepareIntent = VpnService.prepare(context)
+        if (prepareIntent == null) {
+            viewModel.restartVpn()
+        } else {
+            try {
+                vpnPermissionLauncher.launch(prepareIntent)
+            } catch (_: ActivityNotFoundException) {
+            }
+        }
     }
 
     var now by remember { mutableStateOf(Instant.now()) }
@@ -143,6 +173,7 @@ fun DashboardScreen(
                     isAdminLive = state.isAdminLive,
                     isBatteryLive = state.isBatteryLive,
                     areNotificationsEnabled = state.areNotificationsEnabled,
+                    isVpnLive = !state.isVpnBlockingEnabled || isVpnRunning,
                 )
                 if (health.hasIssues) {
                     Spacer(Modifier.height(24.dp))
@@ -162,6 +193,7 @@ fun DashboardScreen(
                                 health = health,
                                 onPermissionResult = viewModel::refreshLiveChecks,
                                 showHealthy = false,
+                                onVpnFix = ::restoreVpn,
                             )
                         }
                     }
@@ -202,8 +234,12 @@ fun DashboardScreen(
                 ) {
                     ModuleCard(
                         title = "VPN",
-                        status = if (state.isVpnBlockingEnabled) "Active" else "Inactive",
-                        isActive = state.isVpnBlockingEnabled,
+                        status = when {
+                            !state.isVpnBlockingEnabled -> "Inactive"
+                            isVpnRunning -> "Active"
+                            else -> "Taken over"
+                        },
+                        isActive = state.isVpnBlockingEnabled && isVpnRunning,
                         onClick = {
                             if (state.isVpnBlockingEnabled) {
                                 showRestartVpnDialog = true
@@ -310,7 +346,7 @@ fun DashboardScreen(
                 confirmButton = {
                     OutlinedButton(
                         onClick = {
-                            viewModel.restartVpn()
+                            restoreVpn()
                             showRestartVpnDialog = false
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),

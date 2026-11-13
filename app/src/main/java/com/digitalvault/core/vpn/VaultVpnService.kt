@@ -121,6 +121,7 @@ class VaultVpnService : VpnService() {
 
     override fun onRevoke() {
         stopVpn()
+        VaultNotifications.showVpnTakenOverAlert(this)
         stopSelf()
         super.onRevoke()
     }
@@ -154,6 +155,7 @@ class VaultVpnService : VpnService() {
 
             return
         }
+        VaultNotifications.clearVpnTakenOverAlert(this)
         tunFd = establishedFd
         currentDnsServers = dnsServers
         isReadLoopActive = true
