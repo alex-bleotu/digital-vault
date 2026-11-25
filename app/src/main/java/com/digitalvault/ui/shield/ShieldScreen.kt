@@ -51,11 +51,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -77,6 +80,7 @@ fun ShieldScreen(
     val colors = VaultTheme.colors
     val state = viewModel.uiState
     val context = LocalContext.current
+    val totalBlockedCount = state.blockedDomains.size + state.limitBlockedDomains.size
 
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -119,8 +123,8 @@ fun ShieldScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = if (state.blockedDomains.isNotEmpty()) {
-                        "${state.blockedDomains.size} ${if (state.blockedDomains.size == 1) "DOMAIN" else "DOMAINS"} BLOCKED"
+                    text = if (totalBlockedCount > 0) {
+                        "$totalBlockedCount ${if (totalBlockedCount == 1) "DOMAIN" else "DOMAINS"} BLOCKED"
                     } else {
                         "NO DOMAINS BLOCKED YET"
                     },
@@ -233,7 +237,7 @@ fun ShieldScreen(
                         .verticalScroll(screenScrollState)
                         .padding(bottom = 24.dp),
                 ) {
-                    if (state.blockedDomains.isEmpty()) {
+                    if (totalBlockedCount == 0) {
                         Surface(
                             shape = VaultTheme.shapes.medium,
                             color = colors.surface,
@@ -263,6 +267,17 @@ fun ShieldScreen(
                                     domain = domain,
                                     isReadOnly = isReadOnly,
                                     onRemove = { viewModel.removeBlockedDomain(domain) },
+                                )
+                            }
+                            state.limitBlockedDomains.forEachIndexed { index, (domain, label) ->
+                                if (index > 0 || state.blockedDomains.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                                DomainRow(
+                                    domain = domain,
+                                    note = label,
+                                    isReadOnly = isReadOnly,
+                                    onRemove = {},
                                 )
                             }
                         }
@@ -428,7 +443,12 @@ fun ShieldScreen(
 }
 
 @Composable
-private fun DomainRow(domain: String, isReadOnly: Boolean, onRemove: () -> Unit) {
+private fun DomainRow(
+    domain: String,
+    isReadOnly: Boolean,
+    onRemove: () -> Unit,
+    note: String? = null,
+) {
     val colors = VaultTheme.colors
     val context = LocalContext.current
 
@@ -461,19 +481,30 @@ private fun DomainRow(domain: String, isReadOnly: Boolean, onRemove: () -> Unit)
             }
             Spacer(Modifier.width(14.dp))
             Text(
-                text = domain,
+                text = buildAnnotatedString {
+                    append(domain)
+                    if (note != null) {
+                        withStyle(SpanStyle(color = colors.textMuted)) {
+                            append(" ($note)")
+                        }
+                    }
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onRemove, enabled = !isReadOnly) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Remove $domain",
-                    tint = if (isReadOnly) colors.textMuted.copy(alpha = 0.5f) else colors.textMuted,
-                )
+            if (note == null) {
+                IconButton(onClick = onRemove, enabled = !isReadOnly) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Remove $domain",
+                        tint = if (isReadOnly) colors.textMuted.copy(alpha = 0.5f) else colors.textMuted,
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(48.dp))
             }
         }
     }

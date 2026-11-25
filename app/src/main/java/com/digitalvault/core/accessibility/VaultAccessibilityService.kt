@@ -36,6 +36,7 @@ import com.digitalvault.core.accessibility.matcher.hasVisibleNodeWithViewId
 import com.digitalvault.core.data.AppUsageRepository
 import com.digitalvault.core.data.BreakUsageRepository
 import com.digitalvault.core.data.DnsRepository
+import com.digitalvault.core.data.LimitBlockedDomains
 import com.digitalvault.core.data.RulesRepository
 import com.digitalvault.core.data.VaultRepository
 import com.digitalvault.core.data.model.AppRule
@@ -125,6 +126,8 @@ class VaultAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var usageTrackedPackages: Set<String> = emptySet()
+
+    private var lastSyncedLimitDomains: Map<String, String>? = null
 
     private val usageMillisByPackage = mutableMapOf<String, Long>()
     private var usageDate: LocalDate = LocalDate.now()
@@ -305,6 +308,7 @@ class VaultAccessibilityService : AccessibilityService() {
                 usageTrackedPackages = rules.map { it.packageName }.toSet()
                 recomputeMonitoredPackages()
                 updateUsageTicker()
+                syncLimitBlockedDomains()
             }
         }
         serviceScope.launch {
@@ -320,7 +324,7 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
-                blockedDomains = config.blockedDomains
+                blockedDomains = config.blockedDomains + config.limitBlockedDomains.keys
                 recomputeMonitoredPackages()
             }
         }
@@ -588,6 +592,21 @@ class VaultAccessibilityService : AccessibilityService() {
         }
         if (rule != null) {
             enforceTimeRule(rule.packageName, rule)
+        }
+        syncLimitBlockedDomains()
+    }
+
+    private fun syncLimitBlockedDomains() {
+        val desired = timeRules.values
+            .filter { timeRestrictionReason(it) != null && !isTemporarilyAllowed(it.packageName) }
+            .flatMap { LimitBlockedDomains.BY_PACKAGE[it.packageName].orEmpty() }
+            .associate { it.domain to it.label }
+        if (desired == lastSyncedLimitDomains) {
+            return
+        }
+        lastSyncedLimitDomains = desired
+        serviceScope.launch {
+            DnsRepository(vaultDataStore).setLimitBlockedDomains(desired)
         }
     }
 

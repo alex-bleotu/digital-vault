@@ -15,6 +15,7 @@ data class ShieldUiState(
     val allowedDomains: List<String> = emptyList(),
     val newAllowedDomainDraft: String = "",
     val blockedDomains: List<String> = emptyList(),
+    val limitBlockedDomains: List<Pair<String, String>> = emptyList(),
     val isAdultFilterEnabled: Boolean = false,
     val newDomainDraft: String = "",
     val isVpnBlockingEnabled: Boolean = false,
@@ -33,6 +34,7 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
                 uiState = uiState.copy(
                     allowedDomains = config.allowedDomains.sorted(),
                     blockedDomains = config.blockedDomains.sorted(),
+                    limitBlockedDomains = config.limitBlockedDomains.toList().sortedBy { it.first },
                     isAdultFilterEnabled = config.isAdultFilterEnabled,
                     isVpnBlockingEnabled = config.isVpnBlockingEnabled,
                 )

@@ -74,18 +74,19 @@ class VaultVpnService : VpnService() {
         isRunning.value = true
         val initialConfig = runBlocking { DnsRepository(vaultDataStore).config.first() }
         allowedDomains = initialConfig.allowedDomains
-        blockedDomains = initialConfig.blockedDomains
+        blockedDomains = initialConfig.blockedDomains + initialConfig.limitBlockedDomains.keys
         isAdultFilterEnabled = initialConfig.isAdultFilterEnabled
         hasLoadedConfig = true
         serviceScope.launch {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
+                val configBlockedDomains = config.blockedDomains + config.limitBlockedDomains.keys
                 val hasFilterChanged = hasLoadedConfig && (
                     config.allowedDomains != allowedDomains ||
-                        config.blockedDomains != blockedDomains ||
+                        configBlockedDomains != blockedDomains ||
                         config.isAdultFilterEnabled != isAdultFilterEnabled
                     )
                 allowedDomains = config.allowedDomains
-                blockedDomains = config.blockedDomains
+                blockedDomains = configBlockedDomains
                 isAdultFilterEnabled = config.isAdultFilterEnabled
                 if (hasFilterChanged && tunFd != null) {
                     reestablishTunnel()
