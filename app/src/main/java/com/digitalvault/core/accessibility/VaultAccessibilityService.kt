@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.VpnService
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
@@ -26,6 +28,7 @@ import com.digitalvault.core.accessibility.matcher.SurfaceMatchers
 import com.digitalvault.core.accessibility.matcher.TikTokFeedMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeRvxShortsMatcher
 import com.digitalvault.core.accessibility.matcher.YouTubeShortsMatcher
+import com.digitalvault.MainActivity
 import com.digitalvault.core.accessibility.matcher.anyVisibleDescendantDescriptionMatches
 import com.digitalvault.core.accessibility.matcher.findVisibleNodesByText
 import com.digitalvault.core.accessibility.matcher.hasDescendantWithExactText
@@ -43,6 +46,7 @@ import com.digitalvault.core.data.model.AppRule
 import com.digitalvault.core.data.model.BlockMode
 import com.digitalvault.core.data.vaultDataStore
 import com.digitalvault.core.permissions.SetupPermissions
+import com.digitalvault.core.service.VaultNotifications
 import com.digitalvault.core.vpn.VaultVpnService
 import com.digitalvault.ui.lock.BlockOverlayController
 import java.time.Duration
@@ -67,6 +71,10 @@ private const val DISMISS_MINUTES = 5
 private const val HOLD_MILLIS = 1600
 private const val ICON_SIZE_PX = 144
 private const val SETTINGS_UNLOCK_SECONDS = 60L
+private const val VPN_GUARD_TICK_MILLIS = 2_000L
+private const val VPN_GUARD_DELAY_MILLIS = 10_000L
+private const val VPN_ACTIVATION_HOME_WINDOW_MILLIS = 60_000L
+private const val VPN_CONSENT_DIALOG_PACKAGE = "com.android.vpndialogs"
 private const val SELF_TRIGGERED_HOME_GUARD_MILLIS = 1_000L
 private const val SELF_TRIGGERED_HOME_BROADCAST_WINDOW_MILLIS = 5_000L
 private const val INSTAGRAM_SETTLE_GUARD_MILLIS = 350L
@@ -221,6 +229,15 @@ class VaultAccessibilityService : AccessibilityService() {
     private var selfTriggeredHomeAtMillis: Long = 0L
 
     @Volatile
+    private var isVpnBlockingEnabled: Boolean = false
+
+    @Volatile
+    private var isVpnTunnelUp: Boolean = false
+
+    private var vpnDownSinceMillis: Long = 0L
+    private var goHomeAfterVpnUntilMillis: Long = 0L
+
+    @Volatile
     private var isAwaitingSelfTriggeredHomeBroadcast: Boolean = false
 
     private var isDispatchingEvent: Boolean = false
@@ -261,7 +278,7 @@ class VaultAccessibilityService : AccessibilityService() {
                         return
                     }
                 }
-                if (overlayController?.isShowing == true) {
+                if (overlayController?.isShowing == true && overlayController?.kind != BlockOverlayController.OverlayKind.VPN_REQUIRED) {
                     activeBlockedPackage = null
                     overlayController?.hide()
                     abandonAudioFocus()
@@ -315,7 +332,9 @@ class VaultAccessibilityService : AccessibilityService() {
             repository.config.collectLatest { config ->
                 isPasswordSet = config.isPasswordSet
                 settingsUnlockedUntilMillis = config.unlockedForSettingsUntil?.toEpochMilli() ?: 0L
-                if (System.currentTimeMillis() < settingsUnlockedUntilMillis) {
+                if (System.currentTimeMillis() < settingsUnlockedUntilMillis &&
+                    overlayController?.kind != BlockOverlayController.OverlayKind.VPN_REQUIRED
+                ) {
                     activeBlockedPackage = null
                     overlayController?.hide()
                 }
@@ -325,7 +344,15 @@ class VaultAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             DnsRepository(vaultDataStore).config.collectLatest { config ->
                 blockedDomains = config.blockedDomains + config.limitBlockedDomains.keys
+                isVpnBlockingEnabled = config.isVpnBlockingEnabled
+                isVpnTunnelUp = config.isVpnRunning
                 recomputeMonitoredPackages()
+            }
+        }
+        serviceScope.launch {
+            while (isActive) {
+                delay(VPN_GUARD_TICK_MILLIS)
+                evaluateVpnGuard()
             }
         }
         serviceScope.launch {
@@ -1303,6 +1330,68 @@ class VaultAccessibilityService : AccessibilityService() {
             onDismissForBreak = onDismissForBreak,
             onExit = ::exitToHome,
         )
+    }
+
+    private fun hasActiveNetwork(): Boolean =
+        ContextCompat.getSystemService(this, ConnectivityManager::class.java)?.activeNetwork != null
+
+    private fun evaluateVpnGuard() {
+        val controller = overlayController ?: return
+        val isVpnDown = isVpnBlockingEnabled && !isVpnTunnelUp
+        if (!isVpnDown) {
+            vpnDownSinceMillis = 0L
+            if (controller.kind == BlockOverlayController.OverlayKind.VPN_REQUIRED) {
+                controller.hide()
+            }
+            if (System.currentTimeMillis() < goHomeAfterVpnUntilMillis) {
+                goHomeAfterVpnUntilMillis = 0L
+                exitToHome()
+            }
+
+            return
+        }
+        if (!hasActiveNetwork()) {
+            vpnDownSinceMillis = 0L
+            if (controller.kind == BlockOverlayController.OverlayKind.VPN_REQUIRED) {
+                controller.hide()
+            }
+
+            return
+        }
+        if (powerManager?.isInteractive != true || controller.isShowing) {
+            return
+        }
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+        if (foregroundPackage == packageName || foregroundPackage == VPN_CONSENT_DIALOG_PACKAGE) {
+            vpnDownSinceMillis = 0L
+
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (vpnDownSinceMillis == 0L) {
+            vpnDownSinceMillis = now
+
+            return
+        }
+        if (now - vpnDownSinceMillis < VPN_GUARD_DELAY_MILLIS) {
+            return
+        }
+        controller.showVpnRequired(onActivate = ::activateVpnFromOverlay)
+    }
+
+    private fun activateVpnFromOverlay() {
+        goHomeAfterVpnUntilMillis = System.currentTimeMillis() + VPN_ACTIVATION_HOME_WINDOW_MILLIS
+        if (VpnService.prepare(this) == null) {
+            VaultVpnService.restart(this)
+
+            return
+        }
+        overlayController?.hide()
+        vpnDownSinceMillis = 0L
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(VaultNotifications.EXTRA_RESTORE_VPN, true)
+        runCatching { startActivity(intent) }
     }
 
     private fun exitToHome() {

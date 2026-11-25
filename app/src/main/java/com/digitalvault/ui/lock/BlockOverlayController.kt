@@ -33,7 +33,13 @@ class BlockOverlayController(private val context: Context) {
     val isShowing: Boolean
         get() = overlayView != null
 
-    enum class OverlayKind { TIMEOUT_WALL, VAULT_PROMPT }
+    enum class OverlayKind { TIMEOUT_WALL, VAULT_PROMPT, VPN_REQUIRED }
+
+    fun showVpnRequired(onActivate: () -> Unit) {
+        attach(OverlayKind.VPN_REQUIRED, focusable = false) {
+            VpnRequiredContent(onActivate = onActivate)
+        }
+    }
 
     fun showTimeoutWall(
         appLabel: String,

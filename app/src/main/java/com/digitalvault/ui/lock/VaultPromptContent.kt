@@ -29,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.digitalvault.ui.theme.DigitalVaultTheme
 import com.digitalvault.ui.theme.VaultTheme
 import kotlinx.coroutines.launch
 
@@ -137,7 +139,20 @@ fun VaultPromptContent(
             modifier = Modifier.offset(y = (-16).dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.brass),
         ) {
-            Text(text = "Go to Home Screen", color = colors.brass)
+            Text(text = "Go to Home Screen", color = colors.brass, style = MaterialTheme.typography.labelLarge)
         }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 780)
+@Composable
+private fun VaultPromptContentPreview() {
+    DigitalVaultTheme {
+        VaultPromptContent(
+            message = "ENTER PASSCODE TO CHANGE PROTECTED SETTINGS",
+            onVerify = { false },
+            onSuccess = {},
+            onLeave = {},
+        )
     }
 }
