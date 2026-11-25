@@ -1380,14 +1380,15 @@ class VaultAccessibilityService : AccessibilityService() {
     }
 
     private fun activateVpnFromOverlay() {
-        goHomeAfterVpnUntilMillis = System.currentTimeMillis() + VPN_ACTIVATION_HOME_WINDOW_MILLIS
+        vpnDownSinceMillis = 0L
         if (VpnService.prepare(this) == null) {
             VaultVpnService.restart(this)
+            exitToHome()
 
             return
         }
+        goHomeAfterVpnUntilMillis = System.currentTimeMillis() + VPN_ACTIVATION_HOME_WINDOW_MILLIS
         overlayController?.hide()
-        vpnDownSinceMillis = 0L
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(VaultNotifications.EXTRA_RESTORE_VPN, true)
